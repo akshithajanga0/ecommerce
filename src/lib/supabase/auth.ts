@@ -8,8 +8,12 @@ export interface SignUpResult {
   success: boolean;
   error?: string;
   user?: any;
-  /** True when Supabase requires email confirmation before a session exists. */
-  needsEmailConfirmation?: boolean;
+}
+
+export interface SignInResult {
+  success: boolean;
+  error?: string;
+  user?: any;
 }
 
 /**
@@ -37,15 +41,35 @@ export async function signUp(data: {
       return { success: false, error: error.message };
     }
 
-    // With "Confirm email" enabled, signUp returns a user but no session. The
-    // caller must not treat that as a logged-in state.
     return {
       success: true,
       user: authData.user,
-      needsEmailConfirmation: !authData.session,
     };
   } catch (error) {
     return { success: false, error: 'An unexpected error occurred during sign up.' };
+  }
+}
+
+/**
+ * Sign in an existing user
+ */
+export async function signIn(data: {
+  email: string;
+  password: string;
+}): Promise<SignInResult> {
+  try {
+    const { data: authData, error } = await supabase.auth.signInWithPassword({
+      email: data.email,
+      password: data.password,
+    });
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, user: authData.user };
+  } catch (error) {
+    return { success: false, error: 'An unexpected error occurred during sign in.' };
   }
 }
 

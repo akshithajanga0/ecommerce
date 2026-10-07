@@ -25,7 +25,7 @@ import type {
   User,
 } from "@/lib/types";
 import { getAvailableStock, uid } from "@/lib/utils";
-import { getCurrentUser, signOut, signUp, getUserProfile } from "@/lib/supabase/auth";
+import { getCurrentUser, signIn, signOut, signUp, getUserProfile } from "@/lib/supabase/auth";
 import { getProductsForCards, getProductById as fetchProductById } from "@/lib/supabase/products-light";
 import { getCategories, type SubcategoryOption } from "@/lib/supabase/categories";
 import { buildSubcategoryOptions } from "@/lib/catalogTaxonomy";
@@ -379,15 +379,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const register = useCallback(
     async (data: { name: string; email: string; mobile: string; password: string }): Promise<AuthResult> => {
       const result = await signUp(data);
-      // With "Confirm email" enabled there is no session yet; otherwise the
-      // browser client has stored the session, so load the profile + user data.
-      if (result.success && result.user && !result.needsEmailConfirmation) {
+      if (result.success && result.user) {
         await refreshAuth();
       }
       return {
         ok: result.success,
         error: result.error,
-        needsEmailConfirmation: result.needsEmailConfirmation,
       };
     },
     [refreshAuth]
