@@ -14,7 +14,6 @@ export async function getWishlist(userId: string): Promise<string[]> {
 
     return data.map((item: any) => item.product_id);
   } catch (error) {
-    console.error('Error fetching wishlist:', error);
     return [];
   }
 }
@@ -38,7 +37,6 @@ export async function addToWishlist(
 
     return true;
   } catch (error) {
-    console.error('Error adding to wishlist:', error);
     return false;
   }
 }
@@ -61,7 +59,6 @@ export async function removeFromWishlist(
 
     return true;
   } catch (error) {
-    console.error('Error removing from wishlist:', error);
     return false;
   }
 }
@@ -91,7 +88,6 @@ export async function isInWishlist(
 
     return !!data;
   } catch (error) {
-    console.error('Error checking wishlist:', error);
     return false;
   }
 }

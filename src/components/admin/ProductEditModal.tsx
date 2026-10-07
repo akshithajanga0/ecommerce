@@ -9,9 +9,12 @@ import {
   Tag,
   Trash2,
   X,
+  Upload,
+  Loader2,
 } from "lucide-react";
 import type { AdminProduct, AdminVariant } from "@/lib/adminTypes";
 import { useAdmin } from "@/context/AdminContext";
+import { uploadProductImage } from "@/app/actions/admin/upload-image";
 
 interface ProductEditModalProps {
   product: AdminProduct | null;
@@ -41,6 +44,8 @@ export function ProductEditModal({ product, onClose }: ProductEditModalProps) {
     ]
   );
   const [newImageUrl, setNewImageUrl] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
 
   const [variants, setVariants] = useState<AdminVariant[]>(
     product?.variants || [
@@ -48,6 +53,9 @@ export function ProductEditModal({ product, onClose }: ProductEditModalProps) {
       { id: "v2", sku: "MC-NEW-BLK-L", size: "L", color: "Black", stock: 10, reservedStock: 0 },
     ]
   );
+  // Product-level stock. Used only when the product has NO variants; when
+  // variants exist the server derives the product's total from their stock.
+  const [stock, setStock] = useState<number>(product?.stock ?? 0);
 
   const [specs, setSpecs] = useState<{ label: string; value: string }[]>(
     product?.specifications || [
@@ -120,10 +128,8 @@ export function ProductEditModal({ product, onClose }: ProductEditModalProps) {
   };
 
   const handleRemoveVariant = (index: number) => {
-    if (variants.length <= 1) {
-      alert("At least one variant SKU is required per product.");
-      return;
-    }
+    // Removing every variant is allowed: the product then falls back to its
+    // product-level stock (below) instead of variant stock.
     setVariants(variants.filter((_, i) => i !== index));
   };
 
@@ -131,6 +137,29 @@ export function ProductEditModal({ product, onClose }: ProductEditModalProps) {
     if (!newImageUrl.trim()) return;
     setImages([...images, newImageUrl.trim()]);
     setNewImageUrl("");
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    setUploadError("");
+
+    try {
+      const result = await uploadProductImage(file);
+      if (result.success && result.data) {
+        setImages([...images, result.data.url]);
+      } else if (!result.success) {
+        setUploadError(result.error || "Upload failed. Please try again.");
+      }
+    } catch (error) {
+      setUploadError("Upload failed. Please try again.");
+    } finally {
+      setUploading(false);
+      // Reset file input
+      e.target.value = "";
+    }
   };
 
   const handleRemoveImage = (index: number) => {
@@ -182,6 +211,7 @@ export function ProductEditModal({ product, onClose }: ProductEditModalProps) {
       badges,
       images: images.length > 0 ? images : ["https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=800&q=80"],
       variants,
+      stock: Number(stock) || 0,
       specifications: specs.filter((s) => s.label.trim() && s.value.trim()),
       colors: Array.from(new Set(variants.map((v) => v.color))),
       sizes: Array.from(new Set(variants.map((v) => v.size))),
@@ -418,22 +448,58 @@ export function ProductEditModal({ product, onClose }: ProductEditModalProps) {
               ))}
             </div>
 
-            <div className="flex gap-2 pt-1">
-              <input
-                type="url"
-                value={newImageUrl}
-                onChange={(e) => setNewImageUrl(e.target.value)}
-                placeholder="Paste public image URL (Unsplash, Cloudinary, S3)..."
-                className="flex-1 rounded-md border border-neutral-300 bg-white px-3 py-2 text-black text-xs placeholder:text-neutral-400 focus:border-black focus:outline-none"
-              />
-              <button
-                type="button"
-                onClick={handleAddImage}
-                className="flex items-center gap-1 rounded-md border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-black hover:bg-neutral-50 transition-colors"
-              >
-                <Plus className="h-4 w-4" />
-                <span>Add Image</span>
-              </button>
+            <div className="flex flex-col gap-2 pt-1">
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  value={newImageUrl}
+                  onChange={(e) => setNewImageUrl(e.target.value)}
+                  placeholder="Paste public image URL (Unsplash, Cloudinary, S3)..."
+                  className="flex-1 rounded-md border border-neutral-300 bg-white px-3 py-2 text-black text-xs placeholder:text-neutral-400 focus:border-black focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddImage}
+                  className="flex items-center gap-1 rounded-md border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-black hover:bg-neutral-50 transition-colors"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>Add URL</span>
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="file"
+                  id="image-upload"
+                  accept="image/jpeg,image/jpg,image/png,image/webp"
+                  onChange={handleFileUpload}
+                  disabled={uploading}
+                  className="hidden"
+                />
+                <label
+                  htmlFor="image-upload"
+                  className={`flex items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-black hover:bg-neutral-50 transition-colors cursor-pointer ${
+                    uploading ? "opacity-50 cursor-not-allowed" : ""
+                  }`}
+                >
+                  {uploading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>Uploading...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-4 w-4" />
+                      <span>Upload from Device</span>
+                    </>
+                  )}
+                </label>
+                <span className="text-[10px] text-neutral-500">JPG, PNG, WEBP (max 5MB)</span>
+              </div>
+
+              {uploadError && (
+                <p className="text-xs text-rose-600 font-medium">{uploadError}</p>
+              )}
             </div>
           </div>
 
@@ -456,6 +522,20 @@ export function ProductEditModal({ product, onClose }: ProductEditModalProps) {
                 <Plus className="h-3.5 w-3.5" />
                 <span>Add Variant</span>
               </button>
+            </div>
+
+            {/* Product-level stock fallback (used only when there are no variants) */}
+            <div className="flex items-center gap-2">
+              <label className="text-[11px] font-medium text-neutral-600">
+                Product-level stock {variants.length === 0 ? "(in use)" : "(used when there are no variants)"}
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={stock}
+                onChange={(e) => setStock(Number(e.target.value))}
+                className="w-24 rounded border border-neutral-300 bg-white px-2 py-1 text-black font-mono text-xs font-bold focus:border-black focus:outline-none"
+              />
             </div>
 
             {/* Mobile View: Stacked Variant Cards (< sm) */}

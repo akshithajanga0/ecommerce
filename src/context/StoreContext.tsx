@@ -24,16 +24,15 @@ import type {
   Toast,
   User,
 } from "@/lib/types";
-import { uid } from "@/lib/utils";
-import { getCurrentUser, signIn, signOut, signUp, getUserProfile } from "@/lib/supabase/auth";
-import { getProducts } from "@/lib/supabase/products";
+import { getAvailableStock, uid } from "@/lib/utils";
+import { getCurrentUser, signOut, signUp, getUserProfile } from "@/lib/supabase/auth";
+import { getProductsForCards, getProductById as fetchProductById } from "@/lib/supabase/products-light";
 import { getCategories, type SubcategoryOption } from "@/lib/supabase/categories";
 import { buildSubcategoryOptions } from "@/lib/catalogTaxonomy";
 import { getCart, addToCart as addToCartSupabase, updateCartItem as updateCartItemSupabase, removeFromCart as removeFromCartSupabase, clearCart as clearCartSupabase } from "@/lib/supabase/cart";
 import { getWishlist, addToWishlist as addToWishlistSupabase, removeFromWishlist as removeFromWishlistSupabase, toggleWishlist as toggleWishlistSupabase } from "@/lib/supabase/wishlist";
 import { getOrders, getOrderById } from "@/lib/supabase/orders";
-import { placeOrderSecure, cancelOrderSecure } from "@/app/actions/orders";
-import { getSessionRole } from "@/app/actions/auth";
+import { placeOrderSecure, cancelOrderSecure, submitOrderPaymentUtr } from "@/app/actions/orders";
 import { getAddresses, addAddress as addAddressSupabase, updateAddress as updateAddressSupabase, deleteAddress as deleteAddressSupabase } from "@/lib/supabase/addresses";
 
 interface StoreValue {
@@ -67,10 +66,25 @@ interface StoreValue {
   theme: Theme;
 
   // Auth
-  login: (identifier: string, password: string) => Promise<AuthResult>;
   register: (data: { name: string; email: string; mobile: string; password: string }) => Promise<AuthResult>;
   logout: () => void;
   updateProfile: (patch: { name?: string; email?: string; mobile?: string }) => void;
+  /** Re-read the session and reload the signed-in user's data (post-login). */
+  refreshAuth: () => Promise<void>;
+  /**
+   * Re-read ONLY the signed-in user's orders (targeted — no catalog refetch).
+   * Returns the fresh list (or null on failure) so callers can use it directly
+   * instead of issuing a second, redundant order read.
+   */
+  refreshOrders: () => Promise<Order[] | null>;
+  /** Re-fetch the category catalog (after an admin category mutation). */
+  refreshCategories: () => Promise<void>;
+  /** Apply a single authoritative product (insert or replace) without a full reload. */
+  upsertProduct: (product: Product) => void;
+  /** Remove one product from the catalog locally (after a delete). */
+  removeProduct: (id: string) => void;
+  /** Re-read ONE product (with variants) and apply it — for stock/variant edits. */
+  refreshProduct: (id: string) => Promise<void>;
 
   // Addresses
   addAddress: (address: Omit<Address, "id">) => Promise<Address | null>;
@@ -87,6 +101,7 @@ interface StoreValue {
   isWishlisted: (productId: string) => boolean;
   placeOrder: (order: Omit<Order, "id" | "placedAt">, shippingAddress: Address) => Promise<Order | null>;
   cancelOrder: (orderId: string) => Promise<boolean>;
+  submitUtr: (orderId: string, utr: string) => Promise<boolean>;
   clearCart: () => Promise<void>;
 
   // Recently viewed
@@ -189,6 +204,102 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme, themeHydrated] = useLocalStorage<Theme>("saara:theme", "light");
   const [toasts, setToasts] = useState<Toast[]>([]);
 
+  // ----------------------------------------------------------------
+  // Refresh primitives (exposed to the UI and reused by the admin panel)
+  // ----------------------------------------------------------------
+
+  /** Re-fetch the category catalog (drives the navbar + admin category UI). */
+  const refreshCategories = useCallback(async () => {
+    const categoriesData = await getCategories();
+    setCategories(categoriesData);
+    setSubcategories(buildSubcategoryOptions(categoriesData));
+  }, []);
+
+  /**
+   * Insert or replace a single product in the catalog. Admin mutations return
+   * the authoritative product, so the UI updates that one row instead of
+   * re-downloading the entire catalog (products + all variants).
+   */
+  const upsertProduct = useCallback((product: Product) => {
+    setProducts((prev) => {
+      const exists = prev.some((p) => p.id === product.id);
+      return exists
+        ? prev.map((p) => (p.id === product.id ? product : p))
+        : [product, ...prev];
+    });
+  }, []);
+
+  /** Remove a deleted product locally — no refetch needed. */
+  const removeProduct = useCallback((id: string) => {
+    setProducts((prev) => prev.filter((p) => p.id !== id));
+  }, []);
+
+  /** Re-read ONE product (with variants) and apply it (stock/variant edits). */
+  const refreshProduct = useCallback(
+    async (id: string) => {
+      const product = await fetchProductById(id);
+      if (product) upsertProduct(product);
+    },
+    [upsertProduct]
+  );
+
+  /**
+   * Re-read the current Supabase session and load the signed-in user's profile
+   * plus their cart / wishlist / orders / addresses. Called after login (the
+   * root-layout provider persists across the post-login navigation, so a
+   * mount-only load never sees the new session) and after registration.
+   */
+  const refreshAuth = useCallback(async () => {
+    const currentUser = await getCurrentUser();
+    if (!currentUser) {
+      setUser(null);
+      setCart([]);
+      setWishlist([]);
+      setOrders([]);
+      setAddresses([]);
+      return;
+    }
+    // The profile and every user-scoped list depend only on the user id, so
+    // fetch them in a single round trip.
+    const [profile, cartData, wishlistData, ordersData, addressesData] = await Promise.all([
+      getUserProfile(currentUser.id),
+      getCart(currentUser.id),
+      getWishlist(currentUser.id),
+      getOrders(currentUser.id),
+      getAddresses(currentUser.id),
+    ] as const);
+    if (profile) {
+      setUser({
+        id: profile.id,
+        name: profile.name,
+        email: profile.email,
+        mobile: profile.mobile || '',
+        createdAt: profile.created_at,
+      });
+    }
+    setCart(cartData);
+    setWishlist(wishlistData);
+    // Only replace orders when the read succeeded — a transient failure must not
+    // wipe the list the customer is looking at.
+    if (ordersData) setOrders(ordersData);
+    setAddresses(addressesData);
+  }, []);
+
+  /**
+   * Re-read ONLY the signed-in user's orders.
+   *
+   * Order status is changed by the ADMIN in a different session, and this
+   * provider lives in the root layout (so it survives client navigation) — so
+   * without an explicit revalidation the tracking page would keep showing the
+   * status it captured at load. This touches orders only, never the catalog.
+   */
+  const refreshOrders = useCallback(async () => {
+    if (!user) return null;
+    const ordersData = await getOrders(user.id);
+    if (ordersData) setOrders(ordersData);
+    return ordersData;
+  }, [user]);
+
   // Load initial data from Supabase
   useEffect(() => {
     async function loadData() {
@@ -198,39 +309,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         // from the category rows + the shared taxonomy (there is no separate
         // subcategories table).
         const [productsData, categoriesData] = await Promise.all([
-          getProducts(),
+          getProductsForCards(),
           getCategories(),
         ]);
-        setProducts(productsData);
+        if (productsData) setProducts(productsData);
         setCategories(categoriesData);
         setSubcategories(buildSubcategoryOptions(categoriesData));
 
-        // Load current user
-        const currentUser = await getCurrentUser();
-        if (currentUser) {
-          const profile = await getUserProfile(currentUser.id);
-          if (profile) {
-            setUser({
-              id: profile.id,
-              name: profile.name,
-              email: profile.email,
-              mobile: profile.mobile || '',
-              createdAt: profile.created_at,
-            });
-          }
-
-          // Load user-specific data
-          const [cartData, wishlistData, ordersData, addressesData] = await Promise.all([
-            getCart(currentUser.id),
-            getWishlist(currentUser.id),
-            getOrders(currentUser.id),
-            getAddresses(currentUser.id),
-          ] as const);
-          setCart(cartData);
-          setWishlist(wishlistData);
-          setOrders(ordersData);
-          setAddresses(addressesData);
-        }
+        // Load the signed-in user's profile + user-scoped lists.
+        await refreshAuth();
       } catch (error) {
         console.error('Error loading data:', error);
       } finally {
@@ -239,43 +326,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
 
     loadData();
-  }, []);
+  }, [refreshAuth]);
 
-  // Keep the storefront catalog in sync with the admin panel.
+  // NOTE: the storefront CATALOG is NOT refetched on tab focus. Admin writes go
+  // through server actions that return the authoritative product, and the admin
+  // UI applies the change with targeted `upsertProduct`/`removeProduct` updates
+  // (see AdminContext).
   //
-  // Admin writes go straight to Supabase (see src/app/actions/admin/*). The
-  // storefront reads through the browser client, so a product created or
-  // edited in /admin appears as soon as this tab is brought back into focus —
-  // without forcing a full page reload and without disabling caching.
+  // ORDERS are different: their status is changed by the admin in another
+  // session, so we revalidate just the order list when the tab becomes visible /
+  // focused. That is a single RLS-scoped query, never a catalog reload.
   useEffect(() => {
-    let cancelled = false;
-
-    async function refreshCatalog() {
-      if (document.visibilityState !== "visible") return;
-      // The admin panel doesn't render the public catalog — skip the fetch there.
-      if (window.location.pathname.startsWith("/admin")) return;
-      const [productsData, categoriesData] = await Promise.all([
-        getProducts(),
-        getCategories(),
-      ]);
-      if (cancelled) return;
-      // The getters swallow errors and return [], so only apply a result that
-      // actually returned rows — otherwise a transient network blip on tab
-      // focus would blank the storefront. (A true empty catalog is picked up
-      // on the next full load.)
-      if (productsData.length > 0) setProducts(productsData);
-      if (categoriesData.length > 0) {
-        setCategories(categoriesData);
-        setSubcategories(buildSubcategoryOptions(categoriesData));
-      }
-    }
-
-    document.addEventListener("visibilitychange", refreshCatalog);
-    return () => {
-      cancelled = true;
-      document.removeEventListener("visibilitychange", refreshCatalog);
+    if (!user) return;
+    const onFocus = () => {
+      void refreshOrders();
     };
-  }, []);
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") void refreshOrders();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [user, refreshOrders]);
 
   const toast = useCallback((message: string, type: Toast["type"] = "success") => {
     const id = uid();
@@ -293,66 +368,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [theme]);
 
   // Auth
-  const login = useCallback(
-    async (identifier: string, password: string): Promise<AuthResult> => {
-      const result = await signIn({ email: identifier, password });
-      // Role discovered on login. This only decides where the UI lands; the
-      // server re-verifies the role on every privileged action.
-      let isAdmin = false;
-      if (result.success && result.user) {
-        // Resolve the role on the SERVER (SSR cookie session → profiles.role)
-        // rather than trusting a client-side RLS read, so the post-login
-        // destination for a Super Admin can never fall back to the storefront.
-        // A role-lookup failure must never break login itself — degrade to the
-        // customer destination; the server still gates the admin panel.
-        try {
-          isAdmin = (await getSessionRole()) === 'admin';
-        } catch {
-          isAdmin = false;
-        }
-
-        const profile = await getUserProfile(result.user.id);
-        if (profile) {
-          setUser({
-            id: profile.id,
-            name: profile.name,
-            email: profile.email,
-            mobile: profile.mobile || '',
-            createdAt: profile.created_at,
-          });
-        }
-        
-        // Load user data
-        const [cartData, wishlistData, ordersData, addressesData] = await Promise.all([
-          getCart(result.user.id),
-          getWishlist(result.user.id),
-          getOrders(result.user.id),
-          getAddresses(result.user.id),
-        ]);
-        setCart(cartData);
-        setWishlist(wishlistData);
-        setOrders(ordersData);
-        setAddresses(addressesData);
-      }
-      return { ok: result.success, error: result.error, isAdmin };
-    },
-    []
-  );
+  // NOTE: customer sign-in is performed by the `loginAction` Server Action in
+  // `src/app/actions/auth.ts`. Doing the password check and the `profiles.role`
+  // lookup together on the server removes the race where the browser read the
+  // role before the session cookie had propagated. The client then calls
+  // `refreshAuth()` so the (persisted) root-layout provider reflects the new
+  // session immediately — no manual page reload. The server still re-verifies
+  // the role on every privileged action.
 
   const register = useCallback(
     async (data: { name: string; email: string; mobile: string; password: string }): Promise<AuthResult> => {
       const result = await signUp(data);
-      if (result.success && result.user) {
-        const profile = await getUserProfile(result.user.id);
-        if (profile) {
-          setUser({
-            id: profile.id,
-            name: profile.name,
-            email: profile.email,
-            mobile: profile.mobile || '',
-            createdAt: profile.created_at,
-          });
-        }
+      // With "Confirm email" enabled there is no session yet; otherwise the
+      // browser client has stored the session, so load the profile + user data.
+      if (result.success && result.user && !result.needsEmailConfirmation) {
+        await refreshAuth();
       }
       return {
         ok: result.success,
@@ -360,7 +390,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         needsEmailConfirmation: result.needsEmailConfirmation,
       };
     },
-    []
+    [refreshAuth]
   );
 
   const logout = useCallback(async () => {
@@ -423,19 +453,45 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const addToCart = useCallback(
     async (productId: string, qty = 1, color?: string, size?: string) => {
       if (!user) return;
-      const result = await addToCartSupabase(user.id, { productId, qty, color, size });
+      // Respect real availability: don't add an item whose selected variant is
+      // out of stock (the server re-validates stock at checkout).
+      const product = products.find((p) => p.id === productId);
+      const available = product ? getAvailableStock(product, color, size) : undefined;
+      if (available !== undefined && available <= 0) {
+        toast("This item is out of stock", "error");
+        return;
+      }
+      // Calculate the final absolute quantity to send to the server.
+      // If the item already exists in cart, add to it. Otherwise, use the requested quantity.
+      const key = `${productId}::${color ?? ""}::${size ?? ""}`;
+      const existing = cart.find((i) => i.key === key);
+      const currentQty = existing?.qty ?? 0;
+      const wanted = Math.max(1, Math.floor(qty));
+      const requested = Math.min(wanted, 10, available ?? 10);
+      const finalQty = Math.min(10, currentQty + requested);
+      // Clamp to available stock
+      const clampedQty = available !== undefined ? Math.min(finalQty, available) : finalQty;
+      if (clampedQty < currentQty + requested) {
+        toast(`Only ${available} available`, "error");
+      }
+      // Send the absolute final quantity to the server
+      const result = await addToCartSupabase(user.id, { productId, qty: clampedQty, color, size });
       if (result) {
+        // Use the returned value from server to ensure synchronization
         setCart((prev) => {
-          const key = `${productId}::${color ?? ""}::${size ?? ""}`;
-          const existing = prev.find((i) => i.key === key);
-          if (existing) {
-            return prev.map((i) => (i.key === key ? { ...i, qty: Math.min(10, i.qty + qty) } : i));
+          const existingIndex = prev.findIndex((i) => i.key === key);
+          if (existingIndex >= 0) {
+            // Replace existing item with server-returned value
+            const newCart = [...prev];
+            newCart[existingIndex] = result;
+            return newCart;
           }
+          // Add new item
           return [...prev, result];
         });
       }
     },
-    [user]
+    [user, products, toast, cart]
   );
 
   const removeFromCart = useCallback(
@@ -455,11 +511,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (!user) return;
       const item = cart.find((i) => i.key === key);
       if (item) {
-        await updateCartItemSupabase(user.id, item.productId, qty, item.color, item.size);
-        setCart((prev) => prev.map((i) => (i.key === key ? { ...i, qty: Math.max(1, Math.min(10, qty)) } : i)));
+        // Clamp to the real purchasable stock for the selected variant as well
+        // as the UI ceiling of 10.
+        const product = products.find((p) => p.id === item.productId);
+        const available = product ? getAvailableStock(product, item.color, item.size) : undefined;
+        const upper = Math.min(10, available ?? 10);
+        const nextQty = Math.max(1, Math.min(upper, qty));
+        if (qty > upper) toast(`Only ${upper} available`, "error");
+        await updateCartItemSupabase(user.id, item.productId, nextQty, item.color, item.size);
+        setCart((prev) => prev.map((i) => (i.key === key ? { ...i, qty: nextQty } : i)));
       }
     },
-    [user, cart]
+    [user, cart, products, toast]
   );
 
   const moveToWishlist = useCallback(
@@ -586,6 +649,28 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
       setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, status: "Cancelled" as const } : o)));
       toast("Order cancelled", "info");
+      return true;
+    },
+    [user, toast]
+  );
+
+  // Manual UPI/UTR submission. The server derives ownership from the session
+  // and creates the payment record; the local order reflects the new status so
+  // the UI updates without a refresh.
+  const submitUtr = useCallback(
+    async (orderId: string, utr: string) => {
+      if (!user) return false;
+      const result = await submitOrderPaymentUtr(orderId, utr);
+      if (!result.success) {
+        toast(result.error, "error");
+        return false;
+      }
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === orderId ? { ...o, paymentStatus: "Pending Verification" as const } : o
+        )
+      );
+      toast("Payment reference submitted for verification");
       return true;
     },
     [user, toast]
@@ -754,10 +839,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       compare,
       returns,
       theme,
-      login,
       register,
       logout,
       updateProfile,
+      refreshAuth,
+      refreshOrders,
+      refreshCategories,
+      upsertProduct,
+      removeProduct,
+      refreshProduct,
       addAddress,
       updateAddress,
       removeAddress,
@@ -770,6 +860,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       isWishlisted,
       placeOrder,
       cancelOrder,
+      submitUtr,
       clearCart,
       addRecentlyViewed,
       removeRecentlyViewed,
@@ -790,18 +881,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       toast,
     }),
     [
-      cart, wishlist, orders, toasts, user, addresses, products, categories, subcategories, hydrated, loading,
-      getProductById, getProductBySlug,
+      cart, wishlist, orders, user, addresses, products, categories, subcategories, hydrated, loading,
       recentlyViewed, notifyList, priceAlerts, notifications, userReviews, questions,
       recentSearches, compare, returns, theme,
-      login, register, logout, updateProfile,
-      addAddress, updateAddress, removeAddress,
-      addToCart, removeFromCart, updateQty, moveToWishlist, moveToCart,
-      toggleWishlist, isWishlisted, placeOrder, cancelOrder, clearCart,
-      addRecentlyViewed, removeRecentlyViewed, isNotified, toggleNotify,
-      isPriceAlerted, togglePriceAlert, markAllNotificationsRead,
-      addReview, addQuestion, addRecentSearch, clearRecentSearches,
-      toggleCompare, isCompared, clearCompare, requestReturn, toggleTheme, toast,
+      toasts,
     ]
   );
 

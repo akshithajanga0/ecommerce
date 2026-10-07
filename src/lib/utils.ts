@@ -114,4 +114,69 @@ export function handleImageError(e: React.SyntheticEvent<HTMLImageElement, Event
   if (target.src !== FALLBACK_IMAGE) {
     target.src = FALLBACK_IMAGE;
   }
+}
+
+/**
+ * Purchasable stock for a product (optionally for a specific size/colour).
+ *
+ * Mirrors the availability rule used by the product mapper and the admin
+ * inventory view: a product sold in variants is available if its variants hold
+ * stock (the selected combination when provided, otherwise the whole variant
+ * pool), while a simple product falls back to its product-level stock.
+ *
+ * Structural typing keeps this dependency-free (no import of the Product type).
+ */
+export function toStock(value: unknown): number {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+}
+
+/**
+ * Total purchasable units for a product, using ONE rule everywhere:
+ * a product sold in variants sums its variant stock; a variant-less product
+ * uses its product-level stock. This is the same rule the product mapper and
+ * the admin inventory view apply, so the admin panel and the storefront can
+ * never disagree about whether a product has stock.
+ */
+export function getProductTotalStock(product: {
+  stock: number;
+  variants?: { stock: number }[];
+}): number {
+  const variants = product.variants ?? [];
+  if (variants.length > 0) return variants.reduce((sum, v) => sum + toStock(v.stock), 0);
+  return toStock(product.stock);
+}
+
+/** True when at least one purchasable unit exists for the product. */
+export function isProductInStock(product: {
+  stock: number;
+  variants?: { stock: number }[];
+}): boolean {
+  return getProductTotalStock(product) > 0;
+}
+
+export function getAvailableStock(
+  product: { stock: number; variants?: { color?: string; size?: string; stock: number }[] },
+  color?: string,
+  size?: string
+): number {
+  const variants = product.variants ?? [];
+  if (variants.length === 0) return toStock(product.stock);
+
+  // No size/colour selected: the whole variant pool is purchasable.
+  if (!color && !size) {
+    return variants.reduce((sum, v) => sum + toStock(v.stock), 0);
+  }
+
+  // A specific size/colour was selected: prefer the matching variants. Fall
+  // back to the whole pool when the selected metadata does not map to a
+  // variant row (legacy/seeded products, or size/colour only partly
+  // enumerated) so a genuinely stocked product is never blocked from the cart.
+  // The exact variant is still validated server-side by `create_order` at
+  // checkout, so this lenient client hint is safe.
+  const matching = variants.filter(
+    (v) => (!color || v.color === color) && (!size || v.size === size)
+  );
+  const pool = matching.length > 0 ? matching : variants;
+  return pool.reduce((sum, v) => sum + toStock(v.stock), 0);
 }

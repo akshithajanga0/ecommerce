@@ -26,7 +26,16 @@ import { ProductImageZoom } from "@/components/product/ProductImageZoom";
 import { DeliveryChecker } from "@/components/product/DeliveryChecker";
 import { ReviewsSection } from "@/components/product/ReviewsSection";
 import { ProductQA } from "@/components/product/ProductQA";
-import { cn, discountPercent, formatCount, formatDeliveryDate, handleImageError } from "@/lib/utils";
+import {
+  cn,
+  discountPercent,
+  formatCount,
+  formatDeliveryDate,
+  getAvailableStock,
+  handleImageError,
+  isProductInStock,
+} from "@/lib/utils";
+import { getRelatedProductsForCards } from "@/lib/supabase/products-light";
 
 export function ProductDetailClient({ product }: { product: Product }) {
   const router = useRouter();
@@ -38,7 +47,6 @@ export function ProductDetailClient({ product }: { product: Product }) {
     isPriceAlerted,
     togglePriceAlert,
     addRecentlyViewed,
-    products,
   } = useStore();
   const [qty, setQty] = useState(1);
   const [color, setColor] = useState<string | undefined>(
@@ -46,16 +54,27 @@ export function ProductDetailClient({ product }: { product: Product }) {
   );
   const [size, setSize] = useState<string | undefined>(product.sizes[0] ?? undefined);
   const [descOpen, setDescOpen] = useState(true);
+  const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
 
   const wished = isWishlisted(product.id);
   const priceAlerted = isPriceAlerted(product.id);
   const pct = discountPercent(product.mrp, product.price);
 
-  const relatedProducts = useMemo(() => {
-    return products
-      .filter((p: any) => p.id !== product.id && (p as any).categoryId === (product as any).categoryId)
-      .slice(0, 6);
-  }, [products, product.id, (product as any).categoryId]);
+  // Cap the quantity selector to the purchasable stock for the selected
+  // size/colour (the cart and checkout clamp again server-side).
+  const maxQty = Math.max(1, Math.min(10, getAvailableStock(product, color, size)));
+  // Whole-product availability (shared rule): disables purchase when every
+  // variant (or the product-level stock) is zero.
+  const inStock = isProductInStock(product);
+
+  useEffect(() => {
+    setQty((q) => Math.min(q, maxQty));
+  }, [maxQty]);
+
+  // Fetch related products separately to avoid loading full catalog
+  useEffect(() => {
+    getRelatedProductsForCards(product.categoryId, product.id, 6).then(setRelatedProducts);
+  }, [product.categoryId, product.id]);
 
   useEffect(() => {
     addRecentlyViewed(product.id);
@@ -209,15 +228,15 @@ export function ProductDetailClient({ product }: { product: Product }) {
           <div className="mt-6 flex flex-wrap items-center gap-4">
             <div>
               <p className="mb-1.5 text-sm font-bold text-black">Quantity</p>
-              <QuantitySelector value={qty} onChange={setQty} />
+              <QuantitySelector value={qty} onChange={setQty} max={maxQty} />
             </div>
           </div>
 
           <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Button size="lg" variant="outline" onClick={handleAddToCart} className="w-full">
-              <ShoppingCart size={18} /> Add to Cart
+            <Button size="lg" variant="outline" onClick={handleAddToCart} className="w-full" disabled={!inStock}>
+              <ShoppingCart size={18} /> {inStock ? "Add to Cart" : "Out of Stock"}
             </Button>
-            <Button size="lg" onClick={handleBuyNow} className="w-full">
+            <Button size="lg" onClick={handleBuyNow} className="w-full" disabled={!inStock}>
               <Zap size={18} /> Buy Now
             </Button>
           </div>
@@ -341,7 +360,7 @@ export function ProductDetailClient({ product }: { product: Product }) {
               {relatedProducts.slice(0, 3).map((p: any) => (
                 <Link
                   key={p.id}
-                  href={`/products/${p.slug}`}
+                  href={`/product/${p.slug}`}
                   className="flex gap-3 rounded-md border border-neutral-100 p-2 transition-colors hover:border-neutral-300"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}

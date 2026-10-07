@@ -139,7 +139,7 @@ export function CompleteTheLook() {
                         {prod.brand}
                       </span>
                       <h4 className="mt-0.5 line-clamp-1 text-xs font-bold text-black group-hover:underline">
-                        <Link href={`/products/${prod.slug}`}>{prod.name}</Link>
+                        <Link href={`/product/${prod.slug}`}>{prod.name}</Link>
                       </h4>
 
                       <div className="mt-2 flex items-baseline gap-2">
@@ -154,7 +154,7 @@ export function CompleteTheLook() {
                       </div>
 
                       <Link
-                        href={`/products/${prod.slug}`}
+                        href={`/product/${prod.slug}`}
                         className="mt-3 block text-center text-[11px] font-semibold text-black hover:underline"
                       >
                         Inspect Details →

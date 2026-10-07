@@ -12,7 +12,7 @@ import {
   X,
 } from "lucide-react";
 import { useAdmin } from "@/context/AdminContext";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, getProductTotalStock } from "@/lib/utils";
 import type { AdminProduct } from "@/lib/adminTypes";
 import { ProductEditModal } from "@/components/admin/ProductEditModal";
 
@@ -81,7 +81,7 @@ function AdminProductsContent() {
       Price: p.price,
       MRP: p.mrp,
       Cost_Price: p.costPrice || 0,
-      Total_Stock: p.variants.reduce((s, v) => s + v.stock, 0),
+      Total_Stock: getProductTotalStock(p),
       Variants_Count: p.variants.length,
       Status: p.status,
     }));
@@ -198,7 +198,7 @@ function AdminProductsContent() {
       <div className="block md:hidden space-y-3">
         {filteredProducts.length > 0 ? (
           filteredProducts.map((p) => {
-            const totalStock = p.variants.reduce((s, v) => s + v.stock, 0);
+            const totalStock = getProductTotalStock(p);
             const isLow = p.variants.some((v) => v.stock <= 5);
 
             return (
@@ -321,7 +321,7 @@ function AdminProductsContent() {
             <tbody className="divide-y divide-neutral-100">
               {filteredProducts.length > 0 ? (
                 filteredProducts.map((p) => {
-                  const totalStock = p.variants.reduce((s, v) => s + v.stock, 0);
+                  const totalStock = getProductTotalStock(p);
                   const isLow = p.variants.some((v) => v.stock <= 5);
 
                   return (

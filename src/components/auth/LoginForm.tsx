@@ -2,21 +2,22 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { useStore } from "@/context/StoreContext";
 import { isValidIdentifier } from "@/lib/utils";
+import { loginAction } from "@/app/actions/auth";
 
 export function LoginForm({ next }: { next: string }) {
   const router = useRouter();
-  const { login, toast } = useStore();
+  const { toast, refreshAuth } = useStore();
 
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<{ identifier?: string; password?: string; form?: string }>({});
-  const [loading, setLoading] = useState(false);
+  const [pending, startTransition] = useTransition();
 
   const validate = () => {
     const e: typeof errors = {};
@@ -27,32 +28,29 @@ export function LoginForm({ next }: { next: string }) {
     return Object.keys(e).length === 0;
   };
 
-  const submit = async (ev: React.FormEvent) => {
+  const submit = (ev: React.FormEvent) => {
     ev.preventDefault();
     if (!validate()) return;
-    setLoading(true);
-    const result = await login(identifier, password);
-    setLoading(false);
-    if (result.ok) {
-      // Super Admins land in the admin panel; customers land on the storefront
-      // (or the page they were originally trying to reach). Never drop an admin
-      // into the customer dashboard by default.
-      //
-      // If the user was heading to /admin (e.g. they were bounced to login from
-      // that protected route), always send them back there and let the
-      // server-side gate decide: an admin is admitted, a customer is redirected
-      // to the storefront. This keeps the destination correct even if the
-      // client-side role hint is momentarily unavailable.
-      const destination = next.startsWith("/admin")
-        ? "/admin"
-        : result.isAdmin
-        ? "/admin"
-        : next;
+    // Sign-in runs as a Server Action so the password check, the role lookup
+    // and the redirect all use the real session cookie in one server request.
+    // On success the action redirects (admin → /admin, customer → `next`); we
+    // only fall through here on failure.
+    startTransition(async () => {
+      const result = await loginAction(identifier, password, next);
+      if (result && !result.success) {
+        setErrors({ form: result.error });
+        return;
+      }
+      // The session cookie is set. Reload the (persisted) provider's session
+      // state so the navbar/account UI updates immediately, then navigate to
+      // the server-resolved destination. `router.refresh()` drops the cached
+      // server components so server-rendered routes (e.g. product detail)
+      // re-render for the new session. No manual refresh required.
+      await refreshAuth();
       toast("Logged in successfully");
-      router.push(destination);
-    } else {
-      setErrors({ form: result.error });
-    }
+      router.replace(result.destination || "/");
+      router.refresh();
+    });
   };
 
   const inputCls =
@@ -136,11 +134,11 @@ export function LoginForm({ next }: { next: string }) {
 
         <button
           type="submit"
-          disabled={loading}
+          disabled={pending}
           className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-md bg-black text-sm font-bold text-white transition-colors hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-300"
         >
-          {loading && <Loader2 size={16} className="animate-spin" />}
-          {loading ? "Logging in..." : "Login"}
+          {pending && <Loader2 size={16} className="animate-spin" />}
+          {pending ? "Logging in..." : "Login"}
         </button>
       </form>
 

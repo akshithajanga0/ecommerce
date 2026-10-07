@@ -12,15 +12,15 @@ import { formatPrice } from "@/lib/utils";
 import type { AdminOrder, AdminOrderStatus } from "@/lib/adminTypes";
 import { OrderDetailModal } from "@/components/admin/OrderDetailModal";
 import { InvoiceModal } from "@/components/admin/InvoiceModal";
+import { normalizeOrderStatus } from "@/lib/orderStatus";
 
 const STATUS_TABS: (AdminOrderStatus | "All")[] = [
   "All",
-  "Payment Pending",
-  "Payment Verified",
-  "Packed",
+  "Placed",
+  "Confirmed",
   "Shipped",
+  "Out for Delivery",
   "Delivered",
-  "Payment Rejected",
   "Cancelled",
 ];
 
@@ -36,7 +36,8 @@ export default function AdminOrdersPage() {
 
   const filteredOrders = useMemo(() => {
     return orders.filter((o) => {
-      const matchTab = activeTab === "All" || o.orderStatus === activeTab;
+      const matchTab =
+        activeTab === "All" || normalizeOrderStatus(o.orderStatus) === activeTab;
       const q = search.trim().toLowerCase();
       const matchSearch =
         !q ||
@@ -105,7 +106,7 @@ export default function AdminOrdersPage() {
             const count =
               tab === "All"
                 ? orders.length
-                : orders.filter((o) => o.orderStatus === tab).length;
+                : orders.filter((o) => normalizeOrderStatus(o.orderStatus) === tab).length;
 
             return (
               <button

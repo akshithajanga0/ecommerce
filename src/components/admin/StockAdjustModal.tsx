@@ -28,6 +28,8 @@ export function StockAdjustModal({
     initialSku || selectedProduct?.variants[0]?.sku || ""
   );
 
+  const hasVariants = (selectedProduct?.variants.length ?? 0) > 0;
+
   const selectedVariant =
     selectedProduct?.variants.find((v) => v.sku === selectedSku) ||
     selectedProduct?.variants[0];
@@ -39,7 +41,8 @@ export function StockAdjustModal({
   >("restock");
   const [reasonNote, setReasonNote] = useState("");
 
-  const currentStock = selectedVariant?.stock || 0;
+  // Variant-less products keep their stock on the product row.
+  const currentStock = hasVariants ? selectedVariant?.stock || 0 : selectedProduct?.stock || 0;
 
   const calculateNewStock = () => {
     if (mode === "add") return currentStock + Number(quantity);
@@ -52,7 +55,10 @@ export function StockAdjustModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedProduct || !selectedVariant) return;
+    if (!selectedProduct) return;
+    // A variant product needs a selected variant; a variant-less product adjusts
+    // its product-level stock (empty SKU).
+    if (hasVariants && !selectedVariant) return;
     if (changeDelta === 0) {
       alert("No change in stock quantity.");
       return;
@@ -76,7 +82,7 @@ export function StockAdjustModal({
 
     adjustStock(
       selectedProduct.id,
-      selectedVariant.sku,
+      hasVariants ? selectedVariant?.sku ?? "" : "",
       changeDelta,
       typeMapping[reasonCategory] || "manual_adjust",
       finalReason
@@ -117,9 +123,7 @@ export function StockAdjustModal({
               onChange={(e) => {
                 setSelectedProductId(e.target.value);
                 const prod = products.find((p) => p.id === e.target.value);
-                if (prod && prod.variants[0]) {
-                  setSelectedSku(prod.variants[0].sku);
-                }
+                setSelectedSku(prod?.variants[0]?.sku ?? "");
               }}
               className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-black focus:border-black focus:outline-none"
             >
@@ -131,21 +135,28 @@ export function StockAdjustModal({
             </select>
           </div>
 
-          {/* Variant Selector */}
-          <div className="space-y-1">
-            <label className="font-semibold text-neutral-700">Select Variant SKU</label>
-            <select
-              value={selectedSku}
-              onChange={(e) => setSelectedSku(e.target.value)}
-              className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-black font-mono focus:border-black focus:outline-none"
-            >
-              {selectedProduct?.variants.map((v) => (
-                <option key={v.id} value={v.sku}>
-                  {v.sku} — {v.color} / {v.size} (Current: {v.stock} units)
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Variant Selector (variant-less products adjust product-level stock) */}
+          {hasVariants ? (
+            <div className="space-y-1">
+              <label className="font-semibold text-neutral-700">Select Variant SKU</label>
+              <select
+                value={selectedSku}
+                onChange={(e) => setSelectedSku(e.target.value)}
+                className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-black font-mono focus:border-black focus:outline-none"
+              >
+                {selectedProduct?.variants.map((v) => (
+                  <option key={v.id} value={v.sku}>
+                    {v.sku} — {v.color} / {v.size} (Current: {v.stock} units)
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div className="rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 text-neutral-600">
+              This product is sold without variants — you are adjusting its
+              product-level stock (currently {selectedProduct?.stock || 0} units).
+            </div>
+          )}
 
           {/* Adjustment Mode & Calculation */}
           <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 space-y-3">

@@ -3,9 +3,10 @@
 import { Check } from "lucide-react";
 import type { Order } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { normalizeOrderStatus } from "@/lib/orderStatus";
 
 const STEPS = [
-  { key: "Confirmed", label: "Order Placed" },
+  { key: "Placed", label: "Order Placed" },
   { key: "Confirmed", label: "Confirmed" },
   { key: "Shipped", label: "Shipped" },
   { key: "Out for Delivery", label: "Out for Delivery" },
@@ -13,7 +14,11 @@ const STEPS = [
 ] as const;
 
 export function TrackingTimeline({ status }: { status: Order["status"] }) {
-  const current = status === "Cancelled" ? -1 : STEPS.findIndex((s) => s.key === status);
+  // A freshly placed order has order_status = 'Placed' — without this it would
+  // mark no step as reached. Legacy values normalize to the same lifecycle.
+  const normalized = normalizeOrderStatus(status);
+  const current =
+    normalized === "Cancelled" ? -1 : STEPS.findIndex((s) => s.key === normalized);
 
   return (
     <div className="flex items-center">

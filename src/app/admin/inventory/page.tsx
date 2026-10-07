@@ -16,6 +16,7 @@ import {
 import { useAdmin } from "@/context/AdminContext";
 import { StockAdjustModal } from "@/components/admin/StockAdjustModal";
 import { BulkStockModal } from "@/components/admin/BulkStockModal";
+import { getInventoryRows, LOW_STOCK_THRESHOLD } from "@/lib/inventory";
 
 type InventoryTab = "matrix" | "ledger" | "alerts";
 
@@ -28,23 +29,10 @@ export default function AdminInventoryPage() {
   );
   const [bulkModalOpen, setBulkModalOpen] = useState(false);
 
-  // Flatten all variants
-  const allVariants = useMemo(() => {
-    return products.flatMap((p) =>
-      p.variants.map((v) => ({
-        productId: p.id,
-        productName: p.name,
-        brand: p.brand,
-        categoryId: p.categoryId,
-        sku: v.sku,
-        size: v.size,
-        color: v.color,
-        stock: v.stock,
-        reservedStock: v.reservedStock || 0,
-        availableStock: Math.max(0, v.stock - (v.reservedStock || 0)),
-      }))
-    );
-  }, [products]);
+  // ONE shared inventory model: a product sold in variants expands to one row
+  // per variant; a variant-less product becomes a single product-level row.
+  // This is why the Inventory page and the dashboard low-stock KPI now agree.
+  const allVariants = useMemo(() => getInventoryRows(products), [products]);
 
   const filteredVariants = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -59,7 +47,7 @@ export default function AdminInventoryPage() {
   }, [allVariants, search]);
 
   const lowStockVariants = useMemo(() => {
-    return allVariants.filter((v) => v.stock <= 5);
+    return allVariants.filter((v) => v.stock <= LOW_STOCK_THRESHOLD);
   }, [allVariants]);
 
   const handleExportLedger = () => {
@@ -205,7 +193,7 @@ export default function AdminInventoryPage() {
                   </tr>
                 ) : (
                   filteredVariants.map((v) => (
-                    <tr key={v.sku} className="hover:bg-neutral-50 transition">
+                    <tr key={`${v.productId}-${v.sku}`} className="hover:bg-neutral-50 transition">
                       <td className="p-4 font-mono font-semibold text-black">{v.sku}</td>
                       <td className="p-4 font-medium text-black max-w-[220px] truncate">
                         {v.productName}
@@ -345,10 +333,9 @@ export default function AdminInventoryPage() {
               <div className="col-span-full rounded-xl border border-neutral-200 bg-white p-8 text-center text-neutral-500">
                 All variants are safely above the low-stock threshold.
               </div>
-            ) : (
-              lowStockVariants.map((v) => (
+            ) : (                lowStockVariants.map((v) => (
                 <div
-                  key={v.sku}
+                  key={`${v.productId}-${v.sku}`}
                   className="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm space-y-3"
                 >
                   <div className="flex justify-between items-start">

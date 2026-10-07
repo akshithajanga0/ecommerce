@@ -77,7 +77,11 @@ export interface StockLedgerEntry {
   referenceId?: string;
 }
 
-export type PaymentVerificationStatus = "pending_verification" | "verified" | "rejected";
+export type PaymentVerificationStatus =
+  | "awaiting_reference"
+  | "pending_verification"
+  | "verified"
+  | "rejected";
 
 export interface AdminPayment {
   id: string;
@@ -86,7 +90,8 @@ export interface AdminPayment {
   customerPhone: string;
   amount: number;
   utrNumber: string;
-  paymentMethod: "upi_qr";
+  /** Canonical method key from the order (upi / card / netbanking / ...). */
+  paymentMethod: string;
   screenshotUrl?: string;
   submittedAt: string;
   status: PaymentVerificationStatus;
@@ -100,14 +105,18 @@ export interface AdminPayment {
 
 export type AdminOrderStatus =
   | "Placed"
+  | "Confirmed"
+  | "Shipped"
+  | "Out for Delivery"
+  | "Delivered"
+  | "Cancelled"
+  | "Returned"
+  // Legacy order-status values from the pre-split payment/order model. Kept so
+  // existing rows still type-check; the UI normalizes them to "Confirmed".
   | "Payment Pending"
   | "Payment Verified"
   | "Packed"
-  | "Shipped"
-  | "Delivered"
-  | "Payment Rejected"
-  | "Cancelled"
-  | "Returned";
+  | "Payment Rejected";
 
 export interface AdminOrderTimeline {
   status: AdminOrderStatus;
@@ -146,7 +155,7 @@ export interface AdminOrder {
   taxAmount: number;
   total: number;
   paymentMethod: "Merchant UPI QR" | "Cash on Delivery" | "Card / Netbanking";
-  paymentStatus: "Pending Verification" | "Verified" | "Failed" | "Refunded";
+  paymentStatus: "Pending" | "Pending Verification" | "Verified" | "Paid" | "Failed" | "Refunded";
   orderStatus: AdminOrderStatus;
   utrNumber?: string;
   paymentId?: string;

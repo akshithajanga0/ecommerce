@@ -15,16 +15,30 @@ import type { Order, OrderItem } from '@/lib/types';
  */
 
 /**
- * Get user's orders
+ * Get user's orders.
+ *
+ * Returns `null` on a FAILED request (so a transient error never clobbers the
+ * customer's already-loaded orders with an empty list) and `[]` only for a
+ * genuinely empty result.
  */
-export async function getOrders(userId: string): Promise<Order[]> {
+export async function getOrders(userId: string): Promise<Order[] | null> {
   try {
     const { data, error } = await supabase
       .from('orders')
       .select(`
-        *,
-        order_items (*),
-        order_shipping_addresses (*)
+        id,
+        placed_at,
+        subtotal,
+        discount,
+        shipping_fee,
+        total,
+        order_status,
+        payment_status,
+        payment_method,
+        courier_name,
+        tracking_number,
+        order_items (id, product_id, name, price, quantity, image, variant),
+        order_shipping_addresses (id, line1, line2, city, state, pincode)
       `)
       .eq('user_id', userId)
       .order('placed_at', { ascending: false });
@@ -33,8 +47,8 @@ export async function getOrders(userId: string): Promise<Order[]> {
 
     return data.map(transformOrder);
   } catch (error) {
-    console.error('Error fetching orders:', error);
-    return [];
+    console.error("Error fetching orders:", error);
+    return null;
   }
 }
 
@@ -46,9 +60,19 @@ export async function getOrderById(orderId: string): Promise<Order | null> {
     const { data, error } = await supabase
       .from('orders')
       .select(`
-        *,
-        order_items (*),
-        order_shipping_addresses (*)
+        id,
+        placed_at,
+        subtotal,
+        discount,
+        shipping_fee,
+        total,
+        order_status,
+        payment_status,
+        payment_method,
+        courier_name,
+        tracking_number,
+        order_items (id, product_id, name, price, quantity, image, variant),
+        order_shipping_addresses (id, line1, line2, city, state, pincode)
       `)
       .eq('id', orderId)
       .single();
@@ -57,7 +81,6 @@ export async function getOrderById(orderId: string): Promise<Order | null> {
 
     return transformOrder(data);
   } catch (error) {
-    console.error('Error fetching order:', error);
     return null;
   }
 }
@@ -102,5 +125,7 @@ function transformOrder(data: any): Order {
     deliveryBy: new Date(new Date(data.placed_at).getTime() + 5 * 24 * 60 * 60 * 1000).toISOString(),
     address: addressString,
     paymentMethod: data.payment_method,
+    courierName: data.courier_name ?? undefined,
+    trackingNumber: data.tracking_number ?? undefined,
   };
 }

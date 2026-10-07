@@ -36,6 +36,7 @@ export function AdminTopbar({
     currentStaff,
     setCurrentStaff,
     pendingPaymentCount,
+    newOrderCount,
     lowStockCount,
     resetToSampleData,
     adminToast,
@@ -149,9 +150,9 @@ export function AdminTopbar({
             aria-label="View notifications"
           >
             <Bell className="h-4 w-4" />
-            {(pendingPaymentCount > 0 || lowStockCount > 0) && (
+            {(pendingPaymentCount > 0 || newOrderCount > 0 || lowStockCount > 0) && (
               <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-black px-1 text-[10px] font-bold text-white">
-                {pendingPaymentCount + (lowStockCount > 0 ? 1 : 0)}
+                {pendingPaymentCount + newOrderCount + (lowStockCount > 0 ? 1 : 0)}
               </span>
             )}
           </button>
@@ -165,6 +166,21 @@ export function AdminTopbar({
                   <span className="text-[10px] text-neutral-400 font-mono">Live</span>
                 </div>
                 <div className="py-2 space-y-2">
+                  {newOrderCount > 0 && (
+                    <Link
+                      href="/admin/orders"
+                      onClick={() => setNotifOpen(false)}
+                      className="block p-2.5 rounded-lg bg-blue-50 border border-blue-200 hover:bg-blue-100/60 transition"
+                    >
+                      <p className="font-semibold text-blue-800">
+                        {newOrderCount} New Order{newOrderCount > 1 ? "s" : ""} awaiting acceptance
+                      </p>
+                      <p className="text-[11px] text-neutral-600 mt-0.5">
+                        Confirm to deduct stock and start fulfillment.
+                      </p>
+                    </Link>
+                  )}
+
                   {pendingPaymentCount > 0 ? (
                     <Link
                       href="/admin/payments"
@@ -172,10 +188,10 @@ export function AdminTopbar({
                       className="block p-2.5 rounded-lg bg-amber-50 border border-amber-200 hover:bg-amber-100/60 transition"
                     >
                       <p className="font-semibold text-amber-800">
-                        {pendingPaymentCount} Pending UTR Verification{pendingPaymentCount > 1 ? "s" : ""}
+                        {pendingPaymentCount} Payment{pendingPaymentCount > 1 ? "s" : ""} need attention
                       </p>
                       <p className="text-[11px] text-neutral-600 mt-0.5">
-                        Customer submitted bank UTRs awaiting verification.
+                        Awaiting the customer&apos;s UTR, or bank verification.
                       </p>
                     </Link>
                   ) : (

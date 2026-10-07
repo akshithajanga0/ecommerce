@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect } from "react";
 import { Package } from "lucide-react";
 import { useStore } from "@/context/StoreContext";
 import { OrderCard } from "@/components/product/OrderCard";
@@ -9,7 +10,13 @@ import { Button } from "@/components/ui/Button";
 import { RequireAuth } from "@/components/auth/RequireAuth";
 
 export default function OrdersPage() {
-  const { orders, hydrated } = useStore();
+  const { orders, hydrated, refreshOrders } = useStore();
+
+  // Revalidate the list on mount so an admin status change is reflected without
+  // a hard reload (the provider persists across client navigation).
+  useEffect(() => {
+    void refreshOrders();
+  }, [refreshOrders]);
 
   return (
     <RequireAuth>

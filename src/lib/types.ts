@@ -83,13 +83,20 @@ export interface OrderItem {
 }
 
 export type OrderStatus =
+  | "Placed"
   | "Confirmed"
   | "Shipped"
   | "Out for Delivery"
   | "Delivered"
   | "Cancelled";
 
-export type PaymentStatus = "Paid" | "Pending" | "Failed";
+export type PaymentStatus =
+  | "Pending"
+  | "Pending Verification"
+  | "Verified"
+  | "Paid"
+  | "Failed"
+  | "Refunded";
 
 export interface Order {
   id: string;
@@ -106,6 +113,10 @@ export interface Order {
   deliveryBy: string;
   address: string;
   paymentMethod: string;
+  /** Courier partner, set when the order is dispatched. */
+  courierName?: string;
+  /** AWB / tracking number, set when the order is dispatched. */
+  trackingNumber?: string;
 }
 
 export interface User {
@@ -130,13 +141,6 @@ export interface AuthResult {
    * prompt the user to confirm rather than assuming they are logged in.
    */
   needsEmailConfirmation?: boolean;
-  /**
-   * True when the signed-in account is a Super Admin (`profiles.role = 'admin'`).
-   * Used only to choose the landing route after login. It is NOT a security
-   * boundary — every privileged operation is re-verified on the server via
-   * `requireAdmin()`.
-   */
-  isAdmin?: boolean;
 }
 
 export interface Address {

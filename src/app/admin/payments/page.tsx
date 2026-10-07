@@ -3,9 +3,11 @@
 import { useMemo, useState } from "react";
 import {
   AlertOctagon,
+  CheckCircle2,
   CreditCard,
   Download,
   Search,
+  XCircle,
 } from "lucide-react";
 import { useAdmin } from "@/context/AdminContext";
 import { formatPrice } from "@/lib/utils";
@@ -13,12 +15,16 @@ import type { AdminPayment, PaymentVerificationStatus } from "@/lib/adminTypes";
 import { PaymentVerifyModal } from "@/components/admin/PaymentVerifyModal";
 
 export default function AdminPaymentsPage() {
-  const { payments, exportToCsv, settings } = useAdmin();
+  const { payments, exportToCsv, settings, verifyPayment } = useAdmin();
   const [activeTab, setActiveTab] = useState<PaymentVerificationStatus | "all">(
     "pending_verification"
   );
   const [search, setSearch] = useState("");
   const [selectedPayment, setSelectedPayment] = useState<AdminPayment | null>(null);
+  // Which row is mid-verification, so its buttons disable and cannot double-fire.
+  const [busyId, setBusyId] = useState<string | null>(null);
+  // Open the modal directly on its rejection drawer when Reject is clicked inline.
+  const [autoReject, setAutoReject] = useState(false);
 
   const filteredPayments = useMemo(() => {
     return payments.filter((p) => {
@@ -29,7 +35,7 @@ export default function AdminPaymentsPage() {
         p.orderId.toLowerCase().includes(q) ||
         p.customerName.toLowerCase().includes(q) ||
         p.customerPhone.includes(q) ||
-        p.utrNumber.includes(q);
+        (p.utrNumber ?? "").includes(q);
       return matchTab && matchSearch;
     });
   }, [payments, activeTab, search]);
@@ -39,13 +45,28 @@ export default function AdminPaymentsPage() {
     [payments]
   );
 
-  const pendingTotal = useMemo(
-    () => payments.filter((p) => p.status === "pending_verification").reduce((s, p) => s + p.amount, 0),
+  // Matches the shared pendingPaymentCount: awaiting UTR + awaiting verification.
+  const pendingPayments = useMemo(
+    () =>
+      payments.filter(
+        (p) => p.status === "pending_verification" || p.status === "awaiting_reference"
+      ),
     [payments]
+  );
+
+  const pendingTotal = useMemo(
+    () => pendingPayments.reduce((s, p) => s + p.amount, 0),
+    [pendingPayments]
   );
 
   const duplicateFlagsCount = useMemo(
     () => payments.filter((p) => p.isDuplicateUtr).length,
+    [payments]
+  );
+
+  // "All Paid" = every payment the team has verified/approved.
+  const verifiedCount = useMemo(
+    () => payments.filter((p) => p.status === "verified").length,
     [payments]
   );
 
@@ -65,6 +86,28 @@ export default function AdminPaymentsPage() {
       Rejection_Reason: p.rejectionReason || "N/A",
     }));
     exportToCsv(data, "Miracle_Payments_Reconciliation");
+  };
+
+  // Inline ACCEPT — reuses the existing adminVerifyPayment path via AdminContext.
+  const handleAccept = async (p: AdminPayment) => {
+    if (busyId) return;
+    setBusyId(p.id);
+    try {
+      await verifyPayment(p.orderId, p.id);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  // Inline REJECT — open the modal on its rejection drawer so a reason is captured.
+  const openReject = (p: AdminPayment) => {
+    setAutoReject(true);
+    setSelectedPayment(p);
+  };
+
+  const openDetails = (p: AdminPayment) => {
+    setAutoReject(false);
+    setSelectedPayment(p);
   };
 
   return (
@@ -95,14 +138,22 @@ export default function AdminPaymentsPage() {
       </div>
 
       {/* Summary KPI Strip */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-neutral-500">
+            All Paid
+          </p>
+          <p className="text-xl font-extrabold text-black mt-1 font-mono">{verifiedCount}</p>
+          <span className="text-[10px] text-neutral-500">orders with verified payment</span>
+        </div>
+
         <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
           <p className="text-[11px] font-bold uppercase tracking-wider text-neutral-500">
             Pending Queue Value
           </p>
           <p className="text-xl font-extrabold text-amber-700 mt-1 font-mono">{formatPrice(pendingTotal)}</p>
           <span className="text-[10px] text-neutral-500">
-            {payments.filter((p) => p.status === "pending_verification").length} orders awaiting bank check
+            {pendingPayments.length} orders awaiting payment or bank check
           </span>
         </div>
 
@@ -131,6 +182,7 @@ export default function AdminPaymentsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-neutral-200 pb-3">
         <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-1">
           {[
+            { id: "awaiting_reference", label: "Awaiting Payment" },
             { id: "pending_verification", label: "Pending Verification" },
             { id: "verified", label: "Verified & Approved" },
             { id: "rejected", label: "Rejected Payments" },
@@ -216,9 +268,13 @@ export default function AdminPaymentsPage() {
 
                     <td className="p-4 font-mono">
                       <div className="flex items-center gap-2">
-                        <span className="font-bold text-black text-sm tracking-wide bg-neutral-100 border border-neutral-200 px-2 py-0.5 rounded">
-                          {p.utrNumber}
-                        </span>
+                        {p.utrNumber ? (
+                          <span className="font-bold text-black text-sm tracking-wide bg-neutral-100 border border-neutral-200 px-2 py-0.5 rounded">
+                            {p.utrNumber}
+                          </span>
+                        ) : (
+                          <span className="text-neutral-400 text-[11px] italic">Not submitted yet</span>
+                        )}
                         {p.isDuplicateUtr && (
                           <span className="flex items-center gap-1 rounded bg-rose-50 text-rose-700 px-1.5 py-0.5 text-[10px] font-bold border border-rose-200 font-sans">
                             <AlertOctagon className="h-3 w-3" />
@@ -261,8 +317,10 @@ export default function AdminPaymentsPage() {
                             : "bg-amber-50 text-amber-700 border-amber-200"
                         }`}
                       >
-                        {p.status === "pending_verification"
-                          ? "Pending Check"
+                        {p.status === "awaiting_reference"
+                          ? "Awaiting UTR"
+                          : p.status === "pending_verification"
+                          ? "Pending Verification"
                           : p.status === "verified"
                           ? `Verified by ${p.verifiedBy || "Staff"}`
                           : "Rejected"}
@@ -270,16 +328,36 @@ export default function AdminPaymentsPage() {
                     </td>
 
                     <td className="p-4 text-right">
-                      {p.status === "pending_verification" ? (
-                        <button
-                          onClick={() => setSelectedPayment(p)}
-                          className="rounded-md bg-black hover:bg-neutral-800 px-3.5 py-1.5 font-semibold text-white text-xs shadow-xs transition-colors"
-                        >
-                          Verify & Decide
-                        </button>
+                      {p.status === "awaiting_reference" ? (
+                        <span className="text-neutral-400 text-[11px] italic">Awaiting customer UTR</span>
+                      ) : p.status === "pending_verification" ? (
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => handleAccept(p)}
+                            disabled={busyId !== null}
+                            className="flex items-center gap-1 rounded-md bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 px-3 py-1.5 font-semibold text-white text-xs shadow-xs transition-colors"
+                          >
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            <span>{busyId === p.id ? "Accepting…" : "Accept"}</span>
+                          </button>
+                          <button
+                            onClick={() => openReject(p)}
+                            disabled={busyId !== null}
+                            className="flex items-center gap-1 rounded-md border border-rose-200 bg-rose-50 hover:bg-rose-100 disabled:opacity-60 px-3 py-1.5 font-semibold text-rose-700 text-xs transition-colors"
+                          >
+                            <XCircle className="h-3.5 w-3.5" />
+                            <span>Reject</span>
+                          </button>
+                          <button
+                            onClick={() => openDetails(p)}
+                            className="rounded-md border border-neutral-300 bg-white hover:bg-neutral-50 px-3 py-1.5 font-semibold text-black text-xs transition-colors"
+                          >
+                            Details
+                          </button>
+                        </div>
                       ) : (
                         <button
-                          onClick={() => setSelectedPayment(p)}
+                          onClick={() => openDetails(p)}
                           className="rounded-md border border-neutral-300 bg-white hover:bg-neutral-50 px-3 py-1 font-semibold text-black text-xs transition-colors"
                         >
                           Audit Details
@@ -291,7 +369,25 @@ export default function AdminPaymentsPage() {
               ) : (
                 <tr>
                   <td colSpan={7} className="p-8 text-center text-neutral-500">
-                    No payment records found for the selected filter.
+                    {activeTab === "pending_verification" &&
+                    payments.some((p) => p.status === "awaiting_reference") ? (
+                      <div className="space-y-1">
+                        <p className="font-semibold text-black">No UTRs awaiting verification</p>
+                        <p className="text-xs">
+                          {payments.filter((p) => p.status === "awaiting_reference").length} order(s)
+                          are waiting for the customer to submit their bank reference. Open the{" "}
+                          <button
+                            onClick={() => setActiveTab("awaiting_reference")}
+                            className="font-semibold text-black underline"
+                          >
+                            Awaiting Payment
+                          </button>{" "}
+                          tab. Accept / Reject appear here as soon as a customer submits a UTR.
+                        </p>
+                      </div>
+                    ) : (
+                      "No payment records found for the selected filter."
+                    )}
                   </td>
                 </tr>
               )}
@@ -304,7 +400,11 @@ export default function AdminPaymentsPage() {
       {selectedPayment && (
         <PaymentVerifyModal
           payment={selectedPayment}
-          onClose={() => setSelectedPayment(null)}
+          initialRejecting={autoReject}
+          onClose={() => {
+            setSelectedPayment(null);
+            setAutoReject(false);
+          }}
         />
       )}
     </div>

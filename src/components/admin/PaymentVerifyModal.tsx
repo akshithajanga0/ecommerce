@@ -19,30 +19,47 @@ import { formatPrice } from "@/lib/utils";
 interface PaymentVerifyModalProps {
   payment: AdminPayment | null;
   onClose: () => void;
+  /** Open directly on the rejection drawer (used by the inline Reject button). */
+  initialRejecting?: boolean;
 }
 
-export function PaymentVerifyModal({ payment, onClose }: PaymentVerifyModalProps) {
+export function PaymentVerifyModal({
+  payment,
+  onClose,
+  initialRejecting = false,
+}: PaymentVerifyModalProps) {
   const { verifyPayment, rejectPayment, settings } = useAdmin();
-  const [rejecting, setRejecting] = useState(false);
+  const [rejecting, setRejecting] = useState(initialRejecting);
   const [rejectionReason, setRejectionReason] = useState("UTR not found in merchant bank statement");
   const [customReason, setCustomReason] = useState("");
   const [imageExpanded, setImageExpanded] = useState(false);
+  const [processing, setProcessing] = useState(false);
 
   if (!payment) return null;
 
-  const handleApprove = () => {
-    verifyPayment(payment.orderId, payment.id);
-    onClose();
+  // Only a payment awaiting verification can be accepted or rejected; a payment
+  // that is already verified/rejected is shown read-only.
+  const canDecide = payment.status === "pending_verification";
+
+  const handleApprove = async () => {
+    if (processing) return;
+    setProcessing(true);
+    const ok = await verifyPayment(payment.orderId, payment.id);
+    setProcessing(false);
+    if (ok) onClose();
   };
 
-  const handleReject = () => {
+  const handleReject = async () => {
+    if (processing) return;
     const finalReason = rejectionReason === "custom" ? customReason : rejectionReason;
     if (!finalReason.trim()) {
       alert("Please provide a rejection reason");
       return;
     }
-    rejectPayment(payment.orderId, payment.id, finalReason);
-    onClose();
+    setProcessing(true);
+    const ok = await rejectPayment(payment.orderId, payment.id, finalReason);
+    setProcessing(false);
+    if (ok) onClose();
   };
 
   return (
@@ -96,7 +113,7 @@ export function PaymentVerifyModal({ payment, onClose }: PaymentVerifyModalProps
                     {payment.utrNumber}
                   </span>
                   <span className="text-[10px] text-neutral-500">
-                    ({payment.utrNumber.length} Digits)
+                    ({payment.utrNumber?.length ?? 0} Digits)
                   </span>
                 </div>
               </div>
@@ -221,9 +238,10 @@ export function PaymentVerifyModal({ payment, onClose }: PaymentVerifyModalProps
                 </button>
                 <button
                   onClick={handleReject}
-                  className="px-4 py-1.5 rounded-md bg-red-600 hover:bg-red-700 text-xs font-semibold text-white shadow-xs"
+                  disabled={processing}
+                  className="px-4 py-1.5 rounded-md bg-red-600 hover:bg-red-700 disabled:opacity-60 text-xs font-semibold text-white shadow-xs"
                 >
-                  Confirm Rejection & Release Stock
+                  {processing ? "Processing…" : "Confirm Rejection"}
                 </button>
               </div>
             </div>
@@ -235,28 +253,42 @@ export function PaymentVerifyModal({ payment, onClose }: PaymentVerifyModalProps
           <div className="text-xs text-neutral-500">
             Status:{" "}
             <span className="font-bold capitalize text-amber-700">
-              {payment.status.replace("_", " ")}
+              {payment.status.replaceAll("_", " ")}
             </span>
           </div>
 
           <div className="flex items-center gap-3">
-            {!rejecting && (
-              <button
-                onClick={() => setRejecting(true)}
-                className="flex items-center gap-1.5 rounded-md border border-rose-200 bg-rose-50 px-4 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-100 transition-colors"
-              >
-                <XCircle className="h-4 w-4" />
-                <span>Reject Payment</span>
-              </button>
-            )}
+            {!canDecide ? (
+              <span className="text-xs font-semibold text-neutral-500">
+                {payment.status === "verified"
+                  ? "Payment already verified"
+                  : payment.status === "rejected"
+                  ? "Payment already rejected"
+                  : "No action required"}
+              </span>
+            ) : (
+              <>
+                {!rejecting && (
+                  <button
+                    onClick={() => setRejecting(true)}
+                    disabled={processing}
+                    className="flex items-center gap-1.5 rounded-md border border-rose-200 bg-rose-50 px-4 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-60 transition-colors"
+                  >
+                    <XCircle className="h-4 w-4" />
+                    <span>Reject Payment</span>
+                  </button>
+                )}
 
-            <button
-              onClick={handleApprove}
-              className="flex items-center gap-1.5 rounded-md bg-black px-5 py-2 text-xs font-semibold text-white hover:bg-neutral-800 shadow-sm transition-colors"
-            >
-              <CheckCircle2 className="h-4 w-4" />
-              <span>Verify & Approve Payment</span>
-            </button>
+                <button
+                  onClick={handleApprove}
+                  disabled={processing}
+                  className="flex items-center gap-1.5 rounded-md bg-black px-5 py-2 text-xs font-semibold text-white hover:bg-neutral-800 disabled:opacity-60 shadow-sm transition-colors"
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  <span>{processing ? "Processing…" : "Verify & Approve Payment"}</span>
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>

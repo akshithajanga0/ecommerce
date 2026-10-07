@@ -73,7 +73,7 @@ export default function ComparePage() {
               {comparedProducts.map((p) => (
                 <th key={p.id} className="p-3 text-left align-top">
                   <div className="relative">
-                    <Link href={`/products/${p.slug}`}>
+                    <Link href={`/product/${p.slug}`}>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={p.images[0]} alt={p.name} onError={handleImageError} className="h-28 w-28 rounded-lg border border-neutral-100 object-cover" />
                     </Link>
@@ -85,7 +85,7 @@ export default function ComparePage() {
                       <X size={13} />
                     </button>
                   </div>
-                  <Link href={`/products/${p.slug}`} className="mt-2 block line-clamp-2 font-bold text-black hover:underline">
+                  <Link href={`/product/${p.slug}`} className="mt-2 block line-clamp-2 font-bold text-black hover:underline">
                     {p.name}
                   </Link>
                 </th>

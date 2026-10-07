@@ -6,9 +6,11 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import type { ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import type {
   AdminBanner,
   AdminCategory,
@@ -80,12 +82,39 @@ import {
   adminBulkUpdateStock,
 } from "@/app/actions/admin/inventory";
 import {
+  adminConfirmOrder,
   adminUpdateOrderStatus,
   adminVerifyPayment,
   adminRejectPayment,
 } from "@/app/actions/admin/orders";
+import { countLowStock } from "@/lib/inventory";
+import { isAwaitingConfirmation } from "@/lib/orderStatus";
 import { getCategories as getCategoriesSupabase } from "@/lib/supabase/categories";
 import { buildSubcategoryOptions } from "@/lib/catalogTaxonomy";
+import type { Product } from "@/lib/types";
+
+/**
+ * Lazy-load map: which datasets each admin route actually needs.
+ *
+ * Previously the provider fired ~13 server actions on mount regardless of the
+ * page. Now only the current route's datasets (plus the always-loaded `staff`
+ * and `categories`) are fetched, each at most once per session.
+ */
+const ROUTE_DATASETS: Record<string, string[]> = {
+  "/admin": ["orders", "payments", "customers", "settings"],
+  "/admin/audit": ["auditLogs"],
+  "/admin/categories": ["filters"],
+  "/admin/content": ["banners", "announcements", "youtubeVideos"],
+  "/admin/coupons": ["coupons"],
+  "/admin/customers": ["customers", "orders"],
+  "/admin/inventory": ["stockLedger"],
+  "/admin/orders": ["orders"],
+  "/admin/payments": ["payments", "settings"],
+  "/admin/products": [],
+  "/admin/reports": ["orders", "payments"],
+  "/admin/settings": ["settings"],
+  "/admin/staff": [],
+};
 
 export interface AdminToast {
   id: string;
@@ -116,6 +145,7 @@ interface AdminContextValue {
 
   // Quick metrics
   pendingPaymentCount: number;
+  newOrderCount: number;
   lowStockCount: number;
   totalRevenue: number;
   todaySales: number;
@@ -130,8 +160,9 @@ interface AdminContextValue {
   ) => void;
 
   // Orders & Payments
-  verifyPayment: (orderId: string, paymentId: string) => Promise<void>;
-  rejectPayment: (orderId: string, paymentId: string, reason: string) => Promise<void>;
+  confirmOrder: (orderId: string) => Promise<void>;
+  verifyPayment: (orderId: string, paymentId: string) => Promise<boolean>;
+  rejectPayment: (orderId: string, paymentId: string, reason: string) => Promise<boolean>;
   updateOrderStatus: (
     orderId: string,
     newStatus: AdminOrderStatus,
@@ -197,7 +228,18 @@ interface AdminContextValue {
 const AdminContext = createContext<AdminContextValue | null>(null);
 
 export function AdminProvider({ children }: { children: ReactNode }) {
-  const { products: storeProducts } = useStore();
+  const {
+    products: storeProducts,
+    refreshCategories,
+    upsertProduct,
+    removeProduct,
+    refreshProduct,
+  } = useStore();
+
+  const pathname = usePathname();
+  // Datasets already fetched this session (or in-flight), so StrictMode's
+  // double-invoke and route revisits never refetch the same dataset.
+  const loadedRef = useRef<Set<string>>(new Set());
 
   const products = storeProducts as unknown as AdminProduct[];
   
@@ -237,67 +279,98 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   const [currentStaff, setCurrentStaff] = useState<StaffMember | null>(null);
   const [toasts, setToasts] = useState<AdminToast[]>([]);
 
-  // Load initial data from Supabase
+  // Load ONLY the datasets the current admin route needs (plus the always-needed
+  // staff + categories). Each dataset is fetched at most once per session, so
+  // opening /admin/products no longer pulls payments, audit logs, customers,
+  // coupons, ... — those load lazily when their page is first visited.
   useEffect(() => {
-    async function loadData() {
+    const route = pathname.replace(/\/+$/, "") || "/admin";
+    const needed = new Set<string>([
+      "staff",
+      "categories",
+      ...(ROUTE_DATASETS[route] ?? []),
+    ]);
+    const toLoad = [...needed].filter((k) => !loadedRef.current.has(k));
+    if (toLoad.length === 0) {
+      setLoading(false);
+      return;
+    }
+    // Mark in-flight synchronously so StrictMode's double-invoke cannot fire the
+    // same requests twice. These datasets are global (not route-scoped), so the
+    // results are applied even if the caller unmounts mid-load — cancelling the
+    // setters here would drop the data permanently (the keys are already marked,
+    // so a remount would refetch nothing).
+    toLoad.forEach((k) => loadedRef.current.add(k));
+
+    const loaders: Record<string, () => Promise<void>> = {
+      orders: async () => {
+        const res = await adminGetOrders();
+        setOrders(res.success ? res.data : []);
+      },
+      payments: async () => {
+        const res = await adminGetPayments();
+        setPayments(res.success ? res.data : []);
+      },
+      customers: async () => {
+        const res = await adminGetCustomers();
+        setCustomers(res.success ? res.data : []);
+      },
+      coupons: async () => {
+        const res = await adminGetCoupons();
+        setCoupons(res.success ? res.data : []);
+      },
+      banners: async () => {
+        const res = await adminGetBanners();
+        setBanners(res.success ? res.data : []);
+      },
+      announcements: async () => {
+        const res = await adminGetAnnouncements();
+        setAnnouncements(res.success ? res.data : []);
+      },
+      youtubeVideos: async () => {
+        const res = await adminGetYoutubeVideos();
+        setYoutubeVideos(res.success ? res.data : []);
+      },
+      settings: async () => {
+        const res = await adminGetSettings();
+        setSettings(res.success ? res.data : null);
+      },
+      staff: async () => {
+        const res = await adminGetStaff();
+        setStaff(res.success ? res.data : []);
+        if (res.success && res.data.length > 0) setCurrentStaff(res.data[0]);
+      },
+      auditLogs: async () => {
+        const res = await adminGetAuditLogs();
+        setAuditLogs(res.success ? res.data : []);
+      },
+      stockLedger: async () => {
+        const res = await adminGetStockLedger();
+        setStockLedger(res.success ? res.data : []);
+      },
+      filters: async () => {
+        const res = await adminGetFilters();
+        setFilters(res.success ? res.data : []);
+      },
+      categories: async () => {
+        const categoriesData = await getCategoriesSupabase();
+        setCategories(categoriesData as AdminCategory[]);
+      },
+    };
+
+    (async () => {
       setLoading(true);
       try {
-        const [
-          ordersRes,
-          paymentsRes,
-          customersRes,
-          couponsRes,
-          bannersRes,
-          announcementsRes,
-          youtubeVideosRes,
-          settingsRes,
-          staffRes,
-          auditLogsRes,
-          stockLedgerRes,
-          filtersRes,
-          categoriesData,
-        ] = await Promise.all([
-          adminGetOrders(),
-          adminGetPayments(),
-          adminGetCustomers(),
-          adminGetCoupons(),
-          adminGetBanners(),
-          adminGetAnnouncements(),
-          adminGetYoutubeVideos(),
-          adminGetSettings(),
-          adminGetStaff(),
-          adminGetAuditLogs(),
-          adminGetStockLedger(),
-          adminGetFilters(),
-          getCategoriesSupabase(),
-        ]);
-
-        setOrders(ordersRes.success ? ordersRes.data : []);
-        setPayments(paymentsRes.success ? paymentsRes.data : []);
-        setCustomers(customersRes.success ? customersRes.data : []);
-        setCoupons(couponsRes.success ? couponsRes.data : []);
-        setBanners(bannersRes.success ? bannersRes.data : []);
-        setAnnouncements(announcementsRes.success ? announcementsRes.data : []);
-        setYoutubeVideos(youtubeVideosRes.success ? youtubeVideosRes.data : []);
-        setSettings(settingsRes.success ? settingsRes.data : null);
-        setStaff(staffRes.success ? staffRes.data : []);
-        setAuditLogs(auditLogsRes.success ? auditLogsRes.data : []);
-        setStockLedger(stockLedgerRes.success ? stockLedgerRes.data : []);
-        setFilters(filtersRes.success ? filtersRes.data : []);
-        setCategories(categoriesData as AdminCategory[]);
-        
-        if (staffRes.success && staffRes.data.length > 0) {
-          setCurrentStaff(staffRes.data[0]);
-        }
+        await Promise.all(toLoad.map((k) => loaders[k]()));
       } catch (error) {
-        console.error('Error loading admin data:', error);
+        console.error("Error loading admin data:", error);
+        // Let a failed dataset retry on the next visit.
+        toLoad.forEach((k) => loadedRef.current.delete(k));
       } finally {
         setLoading(false);
       }
-    }
-
-    loadData();
-  }, []);
+    })();
+  }, [pathname]);
 
   const adminToast = useCallback((message: string, type: AdminToast["type"] = "success") => {
     const id = "t_" + Math.random().toString(36).slice(2, 9);
@@ -313,12 +386,17 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       action: AuditLogEntry["action"],
       description: string
     ) => {
-      if (!currentStaff) return;
+      // Never silently no-op when the client has no staff roster loaded: the
+      // acting admin is always resolvable server-side, so fall back to a safe
+      // label rather than dropping the action (this caused admin actions to
+      // appear "dead" when the `staff` table was empty).
+      const staffName = currentStaff?.name || "Admin";
+      const staffRole = currentStaff?.role || "Super Admin";
       // Persisted server-side (service-role, admin-verified). Fire-and-forget so
       // an audit write never blocks the action it describes.
       void adminCreateAuditLog({
-        staffName: currentStaff.name,
-        role: currentStaff.role,
+        staffName,
+        role: staffRole,
         module,
         action,
         description,
@@ -327,8 +405,8 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       const entry: AuditLogEntry = {
         id: "aud_" + Math.random().toString(36).slice(2, 9),
         timestamp: new Date().toISOString(),
-        staffName: currentStaff.name,
-        role: currentStaff.role,
+        staffName,
+        role: staffRole,
         module,
         action,
         description,
@@ -339,21 +417,66 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     [currentStaff]
   );
 
+  /** Replace a single order in state with the authoritative server copy. */
+  const replaceOrder = useCallback((updated: AdminOrder | null) => {
+    if (!updated) return;
+    setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
+  }, []);
+
+  // Orders & Payments
+  /**
+   * ACCEPT / CONFIRM an order. This is the ONLY path that deducts stock.
+   * The atomic RPC guarantees a single deduction (idempotent), and the server
+   * returns the affected products + the refreshed order so we update just
+   * those rows rather than refetching the catalog.
+   */
+  const confirmOrder = useCallback(
+    async (orderId: string) => {
+      const result = await adminConfirmOrder(orderId);
+      if (!result.success) {
+        adminToast(result.error || "Failed to confirm order", "error");
+        return;
+      }
+      const { order, products: affected, ledgerEntryCount } = result.data;
+      replaceOrder(order);
+      affected.forEach((p) => upsertProduct(p));
+      // Only refresh the ledger when its page data is already loaded, so we
+      // never introduce a new request on unrelated routes.
+      if (ledgerEntryCount > 0 && loadedRef.current.has("stockLedger")) {
+        const ledgerRes = await adminGetStockLedger();
+        if (ledgerRes.success) setStockLedger(ledgerRes.data);
+      }
+      logAudit("Orders", "Update", `Confirmed order ${orderId}; stock deducted`);
+      adminToast(
+        ledgerEntryCount > 0
+          ? `Order ${orderId} confirmed; stock updated`
+          : `Order ${orderId} was already confirmed`
+      );
+    },
+    [replaceOrder, upsertProduct, logAudit, adminToast]
+  );
+
   // Calculations
+  // Both "awaiting the customer's UTR" and "submitted, awaiting verification"
+  // are payments that need admin attention.
   const pendingPaymentCount = useMemo(
-    () => payments.filter((p) => p.status === "pending_verification").length,
+    () =>
+      payments.filter(
+        (p) => p.status === "pending_verification" || p.status === "awaiting_reference"
+      ).length,
     [payments]
   );
 
-  const lowStockCount = useMemo(() => {
-    let count = 0;
-    products.forEach((p) => {
-      p.variants.forEach((v) => {
-        if (v.stock <= 5) count++;
-      });
-    });
-    return count;
-  }, [products]);
+  // Orders awaiting admin acceptance — the "new order" signal. Drops to zero
+  // the moment an order is confirmed.
+  const newOrderCount = useMemo(
+    () => orders.filter((o) => isAwaitingConfirmation(o.orderStatus)).length,
+    [orders]
+  );
+
+  // Single shared low-stock rule (src/lib/inventory) so the dashboard and the
+  // Inventory page can never disagree.
+  const lowStockCount = useMemo(() => countLowStock(products), [products]);
 
   const totalRevenue = useMemo(
     () => orders.reduce((sum, o) => sum + o.total, 0),
@@ -370,42 +493,42 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   // Orders & Payments
   const verifyPayment = useCallback(
     async (orderId: string, paymentId: string) => {
-      if (!currentStaff) return;
-      const result = await adminVerifyPayment(paymentId, currentStaff.name);
+      const result = await adminVerifyPayment(paymentId);
       if (result.success) {
-        setOrders((prev) => prev.map((o) => 
-          o.id === orderId ? { ...o, paymentStatus: "Verified" as const } : o
+        setPayments((prev) => prev.map((p) =>
+          p.id === paymentId ? { ...p, status: "verified" as const, verifiedBy: currentStaff?.name } : p
         ));
-        setPayments((prev) => prev.map((p) => 
-          p.id === paymentId ? { ...p, status: "verified" as const } : p
-        ));
+        // A payment decision only changes payment_status — never the order's
+        // fulfillment status. Apply the authoritative order when returned.
+        if (result.data) replaceOrder(result.data);
+        else setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, paymentStatus: "Verified" as const } : o)));
         logAudit("Payments", "Verify", `Verified payment ${paymentId} for order ${orderId}`);
         adminToast("Payment verified", "success");
       } else {
         adminToast(result.error || "Failed to verify payment", "error");
       }
+      return result.success;
     },
-    [currentStaff, logAudit, adminToast]
+    [currentStaff, logAudit, adminToast, replaceOrder]
   );
 
   const rejectPayment = useCallback(
     async (orderId: string, paymentId: string, reason: string) => {
-      if (!currentStaff) return;
-      const result = await adminRejectPayment(paymentId, reason, currentStaff.name);
+      const result = await adminRejectPayment(paymentId, reason);
       if (result.success) {
-        setOrders((prev) => prev.map((o) => 
-          o.id === orderId ? { ...o, paymentStatus: "Failed" as const } : o
-        ));
-        setPayments((prev) => prev.map((p) => 
+        setPayments((prev) => prev.map((p) =>
           p.id === paymentId ? { ...p, status: "rejected" as const, rejectionReason: reason } : p
         ));
+        if (result.data) replaceOrder(result.data);
+        else setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, paymentStatus: "Failed" as const } : o)));
         logAudit("Payments", "Reject", `Rejected payment ${paymentId} for order ${orderId}: ${reason}`);
         adminToast("Payment rejected", "error");
       } else {
         adminToast(result.error || "Failed to reject payment", "error");
       }
+      return result.success;
     },
-    [currentStaff, logAudit, adminToast]
+    [logAudit, adminToast, replaceOrder]
   );
 
   const updateOrderStatus = useCallback(
@@ -416,26 +539,36 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       trackingNumber?: string,
       note?: string
     ) => {
-      if (!currentStaff) return;
-      const result = await adminUpdateOrderStatus(orderId, newStatus, currentStaff.name, note);
+      // The acting admin name is derived server-side; the client value is only
+      // a fallback and can never be the reason the action no-ops.
+      const result = await adminUpdateOrderStatus(
+        orderId,
+        newStatus,
+        currentStaff?.name,
+        note,
+        courierName,
+        trackingNumber
+      );
       if (result.success) {
-        setOrders((prev) => prev.map((o) => {
-          if (o.id === orderId) {
+        if (result.data) {
+          replaceOrder(result.data);
+        } else {
+          setOrders((prev) => prev.map((o) => {
+            if (o.id !== orderId) return o;
             const updated = { ...o, orderStatus: newStatus };
             if (courierName) updated.courierName = courierName;
             if (trackingNumber) updated.trackingNumber = trackingNumber;
             if (note) updated.internalNotes = [...(o.internalNotes || []), note];
             return updated;
-          }
-          return o;
-        }));
+          }));
+        }
         logAudit("Orders", "Update", `Updated order ${orderId} to ${newStatus}`);
         adminToast(`Order status updated to ${newStatus}`);
       } else {
         adminToast(result.error || "Failed to update order status", "error");
       }
     },
-    [currentStaff, logAudit, adminToast]
+    [currentStaff, logAudit, adminToast, replaceOrder]
   );
 
   const addInternalOrderNote = useCallback((orderId: string, note: string) => {
@@ -452,6 +585,23 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     adminToast("Note added to order");
   }, [logAudit, adminToast]);
 
+  /**
+   * Apply the authoritative product returned by an admin mutation to the shared
+   * catalog (targeted update). Falls back to a one-product refetch when the
+   * server did not return a mapped product.
+   */
+  const applyProductResult = useCallback(
+    async (data: unknown, id: string | undefined) => {
+      const product = data as Product | null | undefined;
+      if (product && typeof product === "object" && "id" in product) {
+        upsertProduct(product);
+      } else if (id) {
+        await refreshProduct(id);
+      }
+    },
+    [upsertProduct, refreshProduct]
+  );
+
   // Products
   const saveProduct = useCallback(async (product: Partial<AdminProduct>): Promise<AdminProduct> => {
     if (product.id && products.some((p) => p.id === product.id)) {
@@ -459,6 +609,9 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       if (result.success) {
         logAudit("Products", "Update", `Updated product '${product.name || product.id}'`);
         adminToast("Product updated", "success");
+        // Apply the authoritative product returned by the server to the shared
+        // catalog — no full-catalog refetch.
+        await applyProductResult(result.data, product.id);
         return product as AdminProduct;
       } else {
         adminToast(result.error || "Failed to update product", "error");
@@ -469,23 +622,26 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       if (result.success) {
         logAudit("Products", "Create", `Created product '${product.name || product.id}'`);
         adminToast("Product created", "success");
+        await applyProductResult(result.data, undefined);
         return product as AdminProduct;
       } else {
         adminToast(result.error || "Failed to create product", "error");
         return product as AdminProduct;
       }
     }
-  }, [products, logAudit, adminToast]);
+  }, [products, logAudit, adminToast, applyProductResult]);
 
   const deleteProduct = useCallback(async (productId: string) => {
     const result = await adminDeleteProduct(productId);
     if (result.success) {
       logAudit("Products", "Delete", `Deleted product ${productId}`);
       adminToast("Product deleted", "info");
+      // Remove the single row locally instead of refetching the catalog.
+      removeProduct(productId);
     } else {
       adminToast(result.error || "Failed to delete product", "error");
     }
-  }, [logAudit, adminToast]);
+  }, [logAudit, adminToast, removeProduct]);
 
   const toggleProductStatus = useCallback(async (productId: string) => {
     const result = await adminToggleProductStatus(productId);
@@ -494,10 +650,11 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       const nextStatus = match?.status === "live" ? "draft" : "live";
       logAudit("Products", "Update", `Changed '${match?.name || productId}' status to ${nextStatus}`);
       adminToast(`Product is now ${nextStatus.toUpperCase()}`, "info");
+      await applyProductResult(result.data, productId);
     } else {
       adminToast(result.error || "Failed to toggle product status", "error");
     }
-  }, [products, logAudit, adminToast]);
+  }, [products, logAudit, adminToast, applyProductResult]);
 
   // Inventory & Stock
   const adjustStock = useCallback(
@@ -512,49 +669,57 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       const prodName = prod?.name;
       const varIndex = prod?.variants?.findIndex((v) => v.sku === variantSku) ?? -1;
       const variant = prod?.variants?.[varIndex];
-      const varLabel = variant ? `${variant.size} / ${variant.color}` : variantSku;
-      const prevCount = variant?.stock ?? 0;
-      const newCount = Math.max(0, prevCount + change);
+      // A variant-less product keeps its stock on the product row; an empty SKU
+      // signals a product-level adjustment (see adminAdjustStock).
+      const varLabel = variant
+        ? `${variant.size} / ${variant.color}`
+        : variantSku || 'Product-level';
 
-      const result = await adminAdjustStock(productId, variantSku, change);
+      const result = await adminAdjustStock(
+        productId,
+        variantSku,
+        change,
+        currentStaff?.name || "Admin"
+      );
       if (result.success) {
-        const ledgerEntry: StockLedgerEntry = {
-          id: `SL-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          timestamp: new Date().toISOString(),
-          productId,
-          productName: prodName || "Product",
-          variantSku,
-          variantLabel: varLabel,
-          type,
-          change,
-          previousStock: prevCount,
-          newStock: newCount,
-          reason,
-          staffName: currentStaff?.name || "System",
-          referenceId: productId,
-        };
-        setStockLedger((prev) => [ledgerEntry, ...prev]);
+        // The RPC now creates the ledger entry atomically, so we just refresh it
+        // to get the latest entries from the server.
+        const ledgerResult = await adminGetStockLedger();
+        if (ledgerResult.success && ledgerResult.data) {
+          setStockLedger(ledgerResult.data);
+        }
         logAudit("Inventory", "Adjust Stock", `Stock ${type.toLowerCase()}: ${prodName} (${varLabel}) by ${change} - ${reason}`);
         adminToast(`Stock updated: ${varLabel} ${change > 0 ? "+" : ""}${change}`, "success");
+        // Apply the authoritative product returned by the action (falls back to
+        // a single-product refetch if the server returned none).
+        await applyProductResult(result.data, productId);
       } else {
         adminToast(result.error || "Failed to adjust stock", "error");
       }
     },
-    [products, currentStaff, logAudit, adminToast]
+    [products, currentStaff, logAudit, adminToast, applyProductResult]
   );
 
   const bulkUpdateStock = useCallback(
     async (rows: { sku: string; stock: number }[]) => {
-      const result = await adminBulkUpdateStock(rows);
+      const result = await adminBulkUpdateStock(rows, currentStaff?.name || "Admin");
       if (!result.success) {
         adminToast(result.error, "error");
         return { updated: 0, errors: [result.error] };
       }
+      // Refresh ledger to get the new entries created by the RPC
+      const ledgerResult = await adminGetStockLedger();
+      if (ledgerResult.success && ledgerResult.data) {
+        setStockLedger(ledgerResult.data);
+      }
       logAudit("Inventory", "Adjust Stock", `Bulk updated stock for ${result.data.updated} SKU(s)`);
       adminToast(`Updated stock for ${result.data.updated} SKU(s)`, "success");
+      // Apply the authoritative mapped products returned by the action — only
+      // the affected rows change, with no extra fetches.
+      result.data.products.forEach((p) => upsertProduct(p));
       return { updated: result.data.updated, errors: result.data.errors };
     },
-    [logAudit, adminToast]
+    [logAudit, adminToast, upsertProduct, currentStaff]
   );
 
   // Categories & Filters
@@ -573,12 +738,13 @@ export function AdminProvider({ children }: { children: ReactNode }) {
           `${patch.id ? "Updated" : "Created"} category '${saved.name}'`
         );
         adminToast(patch.id ? "Category updated" : "Category created", "success");
+        await refreshCategories();
         return saved;
       }
       if (!result.success) adminToast(result.error, "error");
       return categories[0] ?? ({} as AdminCategory);
     },
-    [categories, logAudit, adminToast]
+    [categories, logAudit, adminToast, refreshCategories]
   );
 
   const deleteCategory = useCallback(
@@ -591,8 +757,9 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       setCategories((prev) => prev.filter((c) => c.id !== id));
       logAudit("Categories", "Delete", `Deleted category ${id}`);
       adminToast("Category deleted", "info");
+      await refreshCategories();
     },
-    [logAudit, adminToast]
+    [logAudit, adminToast, refreshCategories]
   );
 
   const saveSubcategory = useCallback(
@@ -610,12 +777,13 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         );
         logAudit("Categories", "Update", `Saved subcategory '${saved.name}'`);
         adminToast("Subcategory saved", "success");
+        await refreshCategories();
         return saved;
       }
       if (!result.success) adminToast(result.error, "error");
       return {} as AdminSubcategory;
     },
-    [logAudit, adminToast]
+    [logAudit, adminToast, refreshCategories]
   );
 
   const deleteSubcategory = useCallback(
@@ -639,8 +807,9 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       );
       logAudit("Categories", "Delete", `Deleted subcategory ${name}`);
       adminToast("Subcategory deleted", "info");
+      await refreshCategories();
     },
-    [logAudit, adminToast]
+    [logAudit, adminToast, refreshCategories]
   );
 
   const saveFilter = useCallback(
@@ -969,12 +1138,14 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       toasts,
       loading,
       pendingPaymentCount,
+      newOrderCount,
       lowStockCount,
       totalRevenue,
       todaySales,
       adminToast,
       setCurrentStaff,
       logAudit,
+      confirmOrder,
       verifyPayment,
       rejectPayment,
       updateOrderStatus,
@@ -1028,12 +1199,14 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       toasts,
       loading,
       pendingPaymentCount,
+      newOrderCount,
       lowStockCount,
       totalRevenue,
       todaySales,
       adminToast,
       setCurrentStaff,
       logAudit,
+      confirmOrder,
       verifyPayment,
       rejectPayment,
       updateOrderStatus,

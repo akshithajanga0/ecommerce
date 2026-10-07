@@ -9,8 +9,10 @@ import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { TrackingTimeline } from "@/components/orders/TrackingTimeline";
 import { cn, formatPrice, handleImageError } from "@/lib/utils";
+import { paymentStatusLabel } from "@/lib/paymentMethods";
 
 const STATUS_STYLES: Record<Order["status"], string> = {
+  Placed: "bg-neutral-100 text-neutral-700 border-neutral-200",
   Confirmed: "bg-blue-50 text-blue-700 border-blue-200",
   Shipped: "bg-amber-50 text-amber-700 border-amber-200",
   "Out for Delivery": "bg-purple-50 text-purple-700 border-purple-200",
@@ -72,8 +74,17 @@ export function OrderCard({ order }: { order: Order }) {
           >
             {order.status}
           </span>
-          <span className="rounded-full border border-green-200 bg-green-50 px-2.5 py-0.5 text-xs font-semibold text-green-700">
-            {paymentStatus}
+          <span
+            className={cn(
+              "rounded-full border px-2.5 py-0.5 text-xs font-semibold",
+              (paymentStatus === "Paid" || paymentStatus === "Verified") &&
+                "border-green-200 bg-green-50 text-green-700",
+              (paymentStatus === "Pending" || paymentStatus === "Pending Verification") &&
+                "border-amber-200 bg-amber-50 text-amber-700",
+              paymentStatus === "Failed" && "border-red-200 bg-red-50 text-red-700"
+            )}
+          >
+            {paymentStatusLabel(paymentStatus)}
           </span>
         </div>
       </div>

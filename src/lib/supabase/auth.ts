@@ -12,12 +12,6 @@ export interface SignUpResult {
   needsEmailConfirmation?: boolean;
 }
 
-export interface SignInResult {
-  success: boolean;
-  error?: string;
-  user?: any;
-}
-
 /**
  * Sign up a new user
  */
@@ -52,29 +46,6 @@ export async function signUp(data: {
     };
   } catch (error) {
     return { success: false, error: 'An unexpected error occurred during sign up.' };
-  }
-}
-
-/**
- * Sign in an existing user
- */
-export async function signIn(data: {
-  email: string;
-  password: string;
-}): Promise<SignInResult> {
-  try {
-    const { data: authData, error } = await supabase.auth.signInWithPassword({
-      email: data.email,
-      password: data.password,
-    });
-
-    if (error) {
-      return { success: false, error: error.message };
-    }
-
-    return { success: true, user: authData.user };
-  } catch (error) {
-    return { success: false, error: 'An unexpected error occurred during sign in.' };
   }
 }
 

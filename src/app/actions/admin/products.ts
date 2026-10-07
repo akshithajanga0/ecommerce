@@ -5,6 +5,8 @@ import { ADMIN_MESSAGES, type AdminActionResult } from "@/lib/adminActionResult"
 import { requireAdmin } from "@/lib/supabase/require-admin";
 import { adminSupabase } from "@/lib/supabase/admin";
 import { isAllowedSubcategory, slugifySubcategory } from "@/lib/catalogTaxonomy";
+import { toStock } from "@/lib/utils";
+import { transformProduct } from "@/lib/supabase/productMapper";
 import type { Product } from "@/lib/types";
 
 /**
@@ -25,6 +27,20 @@ function revalidateProductViews(slug?: string | null) {
   revalidatePath("/products");
   revalidatePath("/admin/products");
   if (slug) revalidatePath(`/product/${slug}`);
+}
+
+/**
+ * Re-read a product WITH its variants and mapped to the app shape, so a
+ * mutation can return the authoritative final state. The client applies this
+ * directly to its catalog state instead of issuing another full-catalog query.
+ */
+async function readProductWithVariants(id: string): Promise<Product | null> {
+  const { data } = await adminSupabase
+    .from("products")
+    .select("*, product_variants(*)")
+    .eq("id", id)
+    .single();
+  return data ? transformProduct(data) : null;
 }
 
 /**
@@ -100,6 +116,18 @@ export async function adminCreateProduct(
     const price = Math.max(0, Number(product.price ?? 0));
     const mrp = Math.max(price, Number(product.mrp ?? 0));
 
+    // Stock lives on the variants when a product is sold in size/colour
+    // combinations, so the denormalised products.stock must be their total —
+    // exactly what the admin inventory view aggregates
+    // (totalStock = variants.reduce(stock)). Writing `product.stock` here
+    // (which the admin form never sends) stored 0 and made every new product
+    // read as "Out of Stock" on the storefront. Products without variants
+    // still fall back to their entered product-level stock.
+    const variantsInput = Array.isArray(product.variants) ? product.variants : [];
+    const stock = variantsInput.length
+      ? variantsInput.reduce((sum, v) => sum + toStock(v.stock), 0)
+      : toStock(product.stock);
+
     const { data, error } = await adminSupabase
       .from('products')
       .insert({
@@ -121,7 +149,7 @@ export async function adminCreateProduct(
         sizes: product.sizes,
         badges: product.badges || [],
         specifications: Array.isArray(product.specifications) ? product.specifications : [],
-        stock: product.stock || 0,
+        stock,
         status: product.status || 'live',
         created_at: now,
         updated_at: now,
@@ -141,16 +169,31 @@ export async function adminCreateProduct(
         sku: (v.sku ?? '').trim() || `${slug}-${index + 1}`,
         size: v.size,
         color: v.color,
-        stock: v.stock,
+        stock: toStock(v.stock),
         reserved_stock: v.reservedStock ?? 0,
         price_override: v.priceOverride,
       }));
 
-      await adminSupabase.from('product_variants').insert(variants);
+      const { error: variantError } = await adminSupabase
+        .from('product_variants')
+        .insert(variants);
+
+      // Stock now derives from variants, so a product whose variants failed to
+      // insert would read as "Out of Stock" forever. Roll the product back so a
+      // half-created item is never left in the catalog.
+      if (variantError) {
+        await adminSupabase.from('products').delete().eq('id', data.id);
+        throw variantError;
+      }
     }
 
     revalidateProductViews(data?.slug);
-    return { success: true, data };
+    // Return the authoritative product WITH its variants so the admin UI can
+    // apply it directly (no full-catalog refetch).
+    const full = await readProductWithVariants(productId);
+    // Return the MAPPED product (or null on a read failure) — never the raw
+    // snake_case row, which would corrupt the client catalog if applied.
+    return { success: true, data: full };
   } catch (error) {
     console.error('Error creating product:', error);
     return { success: false, status: 500, error: ADMIN_MESSAGES.failed };
@@ -180,6 +223,20 @@ export async function adminUpdateProduct(
       ? Math.min(5, Math.max(0, Number(product.rating)))
       : undefined;
 
+    // Mirror the create path so an edit can never desync availability from the
+    // variant stock the admin actually edited. When variants are supplied the
+    // product-level total is their sum; when omitted, the normalized
+    // product-level value is written (or left untouched).
+    // Treat an EMPTY variant array as "no variants" so the product-level stock
+    // is used (not summed to 0) when the admin removes every variant.
+    const variantsInput = Array.isArray(product.variants) ? product.variants : undefined;
+    const stock =
+      variantsInput && variantsInput.length > 0
+        ? variantsInput.reduce((sum, v) => sum + toStock(v.stock), 0)
+        : product.stock === undefined
+          ? undefined
+          : toStock(product.stock);
+
     const { data, error } = await adminSupabase
       .from('products')
       .update({
@@ -199,7 +256,7 @@ export async function adminUpdateProduct(
         sizes: product.sizes,
         badges: product.badges,
         specifications: product.specifications,
-        stock: product.stock,
+        stock,
         status: product.status,
         updated_at: now,
       })
@@ -211,6 +268,14 @@ export async function adminUpdateProduct(
 
     // Update variants if provided
     if (product.variants) {
+      // Snapshot the current variants first so a failed replacement can be
+      // rolled back — otherwise a partial write would leave the product with no
+      // variant rows (and, since stock derives from variants, out of stock).
+      const { data: previousVariants } = await adminSupabase
+        .from('product_variants')
+        .select('*')
+        .eq('product_id', id);
+
       // Delete existing variants
       await adminSupabase.from('product_variants').delete().eq('product_id', id);
 
@@ -222,16 +287,53 @@ export async function adminUpdateProduct(
         sku: (v.sku ?? '').trim() || `${id}-${index + 1}`,
         size: v.size,
         color: v.color,
-        stock: v.stock,
+        stock: toStock(v.stock),
         reserved_stock: v.reservedStock ?? 0,
         price_override: v.priceOverride,
       }));
 
-      await adminSupabase.from('product_variants').insert(variants);
+      const { error: variantError } = await adminSupabase
+        .from('product_variants')
+        .insert(variants);
+
+      // Surface a failed variant write and restore the previous rows instead of
+      // leaving the product with no variants (which would read as out of stock).
+      // NOTE: there is no multi-statement transaction here, so if the restore
+      // insert also fails the variants are lost — but the product row is left
+      // consistent either way (its aggregated stock is recomputed below).
+      if (variantError) {
+        if (previousVariants && previousVariants.length > 0) {
+          await adminSupabase.from('product_variants').insert(previousVariants);
+          // The product UPDATE above wrote `stock` as the sum of the NEW
+          // variants. Restore the denormalised total to match the rows we just
+          // put back, so the column can never disagree with its variants.
+          const restoredStock = previousVariants.reduce(
+            (sum: number, v: { stock: number }) => sum + toStock(v.stock),
+            0
+          );
+          await adminSupabase
+            .from('products')
+            .update({ stock: restoredStock })
+            .eq('id', id);
+        } else if (product.stock !== undefined) {
+          // Product had no variants before the edit; restore the product-level
+          // stock the admin sent. When `product.stock` is undefined the main
+          // UPDATE deliberately left the column untouched, so leave it alone
+          // here too (never zero a valid value).
+          await adminSupabase
+            .from('products')
+            .update({ stock: toStock(product.stock) })
+            .eq('id', id);
+        }
+        throw variantError;
+      }
     }
 
     revalidateProductViews(data?.slug ?? product.slug);
-    return { success: true, data };
+    // Return the authoritative final state (with variants) for a targeted
+    // client update instead of a full-catalog refetch.
+    const full = await readProductWithVariants(id);
+    return { success: true, data: full };
   } catch (error) {
     console.error('Error updating product:', error);
     return { success: false, status: 500, error: ADMIN_MESSAGES.failed };
@@ -295,7 +397,9 @@ export async function adminToggleProductStatus(id: string): Promise<AdminActionR
     if (error) throw error;
 
     revalidateProductViews(data?.slug);
-    return { success: true, data };
+    // Return the full product so the list can update the single row in place.
+    const full = await readProductWithVariants(id);
+    return { success: true, data: full };
   } catch (error) {
     console.error('Error toggling product status:', error);
     return { success: false, status: 500, error: ADMIN_MESSAGES.failed };

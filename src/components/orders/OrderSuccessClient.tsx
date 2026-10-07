@@ -71,8 +71,8 @@ export function OrderSuccessClient() {
             Ordered Products
           </div>
           <div className="divide-y divide-neutral-100">
-            {order?.items.map((item) => (
-              <div key={item.productId + item.size + item.color} className="flex items-center gap-3 px-4 py-3">
+            {order?.items.map((item, index) => (
+              <div key={`${item.productId}-${item.size || ''}-${item.color || ''}-${index}`} className="flex items-center gap-3 px-4 py-3">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={item.image} alt={item.name} onError={handleImageError} className="h-14 w-14 rounded border border-neutral-100 object-cover" />
                 <div className="min-w-0 flex-1">

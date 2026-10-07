@@ -8,7 +8,7 @@ export async function getAddresses(userId: string): Promise<Address[]> {
   try {
     const { data, error } = await supabase
       .from('addresses')
-      .select('*')
+      .select('id, name, phone, line1, line2, city, state, pincode, landmark, is_default')
       .eq('user_id', userId)
       .order('is_default', { ascending: false });
 
@@ -16,7 +16,6 @@ export async function getAddresses(userId: string): Promise<Address[]> {
 
     return data.map(transformAddress);
   } catch (error) {
-    console.error('Error fetching addresses:', error);
     return [];
   }
 }
@@ -43,14 +42,13 @@ export async function addAddress(
         landmark: address.landmark,
         is_default: false,
       })
-      .select()
+      .select('id, name, phone, line1, line2, city, state, pincode, landmark, is_default')
       .single();
 
     if (error) throw error;
 
     return transformAddress(data);
   } catch (error) {
-    console.error('Error adding address:', error);
     return null;
   }
 }
@@ -83,7 +81,6 @@ export async function updateAddress(
 
     return true;
   } catch (error) {
-    console.error('Error updating address:', error);
     return false;
   }
 }
@@ -106,7 +103,6 @@ export async function deleteAddress(
 
     return true;
   } catch (error) {
-    console.error('Error deleting address:', error);
     return false;
   }
 }
@@ -136,7 +132,6 @@ export async function setDefaultAddress(
 
     return true;
   } catch (error) {
-    console.error('Error setting default address:', error);
     return false;
   }
 }

@@ -16,9 +16,14 @@ import type { Product } from '@/lib/types';
  */
 
 /**
- * Get all products
+ * Get all products.
+ *
+ * Returns `null` (not `[]`) when the read itself FAILS, so callers can tell a
+ * transient/network error apart from a genuinely empty catalog. Refresh paths
+ * use this to keep the last-known-good catalog on a failed fetch while still
+ * applying a real empty result (e.g. the admin deleted the last product).
  */
-export async function getProducts(): Promise<Product[]> {
+export async function getProducts(): Promise<Product[] | null> {
   try {
     const { data, error } = await supabase
       .from('products')
@@ -34,7 +39,7 @@ export async function getProducts(): Promise<Product[]> {
     return data.map(transformProduct);
   } catch (error) {
     console.error('Error fetching products:', error);
-    return [];
+    return null;
   }
 }
 

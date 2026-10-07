@@ -13,7 +13,7 @@ import {
   Warehouse,
 } from "lucide-react";
 import { useAdmin } from "@/context/AdminContext";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, getProductTotalStock } from "@/lib/utils";
 
 type ReportType = "sales" | "categories" | "valuation" | "payments";
 
@@ -36,7 +36,7 @@ export default function AdminReportsPage() {
     let retailVal = 0;
 
     products.forEach((p) => {
-      const units = p.variants.reduce((s, v) => s + v.stock, 0);
+      const units = getProductTotalStock(p);
       totalUnits += units;
       costVal += units * (p.costPrice || p.price * 0.45);
       retailVal += units * p.price;
@@ -273,7 +273,7 @@ export default function AdminReportsPage() {
               </thead>
               <tbody className="divide-y divide-neutral-200">
                 {products.map((p) => {
-                  const units = p.variants.reduce((s, v) => s + v.stock, 0);
+                  const units = getProductTotalStock(p);
                   const cost = p.costPrice || p.price * 0.45;
                   return (
                     <tr key={p.id} className="hover:bg-neutral-50 transition">

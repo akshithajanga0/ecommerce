@@ -19,6 +19,7 @@ import { PaymentVerifyModal } from "@/components/admin/PaymentVerifyModal";
 import { OrderDetailModal } from "@/components/admin/OrderDetailModal";
 import { StockAdjustModal } from "@/components/admin/StockAdjustModal";
 import { InvoiceModal } from "@/components/admin/InvoiceModal";
+import { getLowStockRows } from "@/lib/inventory";
 
 type ChartPeriod = "today" | "7d" | "30d" | "1y";
 
@@ -40,36 +41,18 @@ export default function AdminDashboardPage() {
   const [adjustingProduct, setAdjustingProduct] = useState<{ id: string; sku: string } | null>(null);
   const [invoiceOrder, setInvoiceOrder] = useState<{ order: AdminOrder; tab: "invoice" | "packingslip" } | null>(null);
 
-  // Low stock variants list
-  const lowStockItems = useMemo(() => {
-    const list: {
-      productId: string;
-      productName: string;
-      sku: string;
-      size: string;
-      color: string;
-      stock: number;
-    }[] = [];
-    products.forEach((p) => {
-      p.variants.forEach((v) => {
-        if (v.stock <= 5) {
-          list.push({
-            productId: p.id,
-            productName: p.name,
-            sku: v.sku,
-            size: v.size,
-            color: v.color,
-            stock: v.stock,
-          });
-        }
-      });
-    });
-    return list;
-  }, [products]);
+  // Low-stock rows — the SAME shared source the Inventory page uses, so the
+  // dashboard and inventory can never disagree (incl. variant-less products).
+  const lowStockItems = useMemo(() => getLowStockRows(products), [products]);
 
   // Pending Payments list
+  // Match the shared pendingPaymentCount predicate so the KPI and this list
+  // can never disagree: awaiting a customer UTR + awaiting verification.
   const pendingPayments = useMemo(
-    () => payments.filter((p) => p.status === "pending_verification"),
+    () =>
+      payments.filter(
+        (p) => p.status === "pending_verification" || p.status === "awaiting_reference"
+      ),
     [payments]
   );
 
@@ -392,19 +375,29 @@ export default function AdminDashboardPage() {
                       )}
                     </div>
                     <p className="text-neutral-500 mt-0.5">
-                      {p.customerName} • UTR:{" "}
-                      <span className="font-mono text-black font-semibold">{p.utrNumber}</span>
+                      {p.customerName} •{" "}
+                      {p.utrNumber ? (
+                        <>
+                          UTR: <span className="font-mono text-black font-semibold">{p.utrNumber}</span>
+                        </>
+                      ) : (
+                        <span className="italic">Awaiting customer UTR</span>
+                      )}
                     </p>
                   </div>
 
                   <div className="flex items-center gap-3">
                     <span className="font-bold text-black font-mono">{formatPrice(p.amount)}</span>
-                    <button
-                      onClick={() => setSelectedPayment(p)}
-                      className="rounded-md bg-black hover:bg-neutral-800 px-3 py-1.5 text-xs font-semibold text-white transition-colors"
-                    >
-                      Verify
-                    </button>
+                    {p.status === "pending_verification" ? (
+                      <button
+                        onClick={() => setSelectedPayment(p)}
+                        className="rounded-md bg-black hover:bg-neutral-800 px-3 py-1.5 text-xs font-semibold text-white transition-colors"
+                      >
+                        Verify
+                      </button>
+                    ) : (
+                      <span className="text-neutral-400 text-[11px] italic">Awaiting UTR</span>
+                    )}
                   </div>
                 </div>
               ))

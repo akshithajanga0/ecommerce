@@ -51,6 +51,54 @@ export async function getAllOrders(): Promise<AdminOrder[]> {
 }
 
 /**
+ * Get a single order with its items/address/timeline (admin).
+ *
+ * Used to return the authoritative post-mutation state so the admin UI can
+ * update one row instead of refetching the whole order list.
+ */
+export async function getOrderById(id: string): Promise<AdminOrder | null> {
+  try {
+    const { data, error } = await adminSupabase
+      .from('orders')
+      .select(`
+        *,
+        order_items (*),
+        order_shipping_addresses (*),
+        order_timeline (*)
+      `)
+      .eq('id', id)
+      .single();
+
+    if (error) throw error;
+
+    return transformAdminOrder(data);
+  } catch (error) {
+    console.error('Error fetching order:', error);
+    return null;
+  }
+}
+
+/**
+ * Get a single payment (admin).
+ */
+export async function getPaymentById(id: string): Promise<AdminPayment | null> {
+  try {
+    const { data, error } = await adminSupabase
+      .from('payments')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) throw error;
+
+    return transformPayment(data);
+  } catch (error) {
+    console.error('Error fetching payment:', error);
+    return null;
+  }
+}
+
+/**
  * Get pending payments (admin)
  */
 export async function getPayments(): Promise<AdminPayment[]> {
@@ -751,7 +799,9 @@ function transformPayment(data: any): AdminPayment {
     customerName: data.customer_name,
     customerPhone: data.customer_phone,
     amount: Number(data.amount),
-    utrNumber: data.utr_number,
+    // A row created at order time has no UTR yet — never surface null, so the
+    // admin UI's `.includes`/`.length` usages stay safe.
+    utrNumber: data.utr_number ?? "",
     paymentMethod: data.payment_method,
     screenshotUrl: data.screenshot_url,
     submittedAt: data.submitted_at,

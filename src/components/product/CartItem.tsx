@@ -18,7 +18,7 @@ export function CartItem({ item }: { item: CartItemType }) {
   return (
     <div className="flex gap-4 p-4">
       <Link
-        href={`/products/${product.slug}`}
+        href={`/product/${product.slug}`}
         className="h-24 w-24 shrink-0 overflow-hidden rounded-md border border-neutral-200 bg-white"
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -36,7 +36,7 @@ export function CartItem({ item }: { item: CartItemType }) {
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <Link
-              href={`/products/${product.slug}`}
+              href={`/product/${product.slug}`}
               className="line-clamp-2 text-sm font-semibold text-black hover:underline"
             >
               {product.name}

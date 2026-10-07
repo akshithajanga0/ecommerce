@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import {
   Calendar,
@@ -13,10 +14,16 @@ import {
 import { useStore } from "@/context/StoreContext";
 import { RequireAuth } from "@/components/auth/RequireAuth";
 import { Button } from "@/components/ui/Button";
+import { UtrPaymentForm } from "@/components/orders/UtrPaymentForm";
 import { cn, formatPrice, handleImageError } from "@/lib/utils";
+import { normalizeOrderStatus } from "@/lib/orderStatus";
+import { requiresOnlinePaymentVerification, paymentStatusLabel } from "@/lib/paymentMethods";
+import { getOrderById } from "@/lib/supabase/orders";
+import type { Order } from "@/lib/types";
 
 const STEPS: { key: string; label: string; icon: typeof Package }[] = [
-  { key: "Confirmed", label: "Order Confirmed", icon: CheckCircle2 },
+  { key: "Placed", label: "Order Placed", icon: CheckCircle2 },
+  { key: "Confirmed", label: "Order Confirmed", icon: Package },
   { key: "Shipped", label: "Shipped", icon: Package },
   { key: "Out for Delivery", label: "Out for Delivery", icon: Truck },
   { key: "Delivered", label: "Delivered", icon: CheckCircle2 },
@@ -24,8 +31,37 @@ const STEPS: { key: string; label: string; icon: typeof Package }[] = [
 
 export default function OrderDetailPage() {
   const params = useParams<{ id: string }>();
-  const { orders, cancelOrder } = useStore();
-  const order = orders.find((o) => o.id === params.id);
+  const { orders, user, cancelOrder, refreshOrders } = useStore();
+  const [fetchedOrder, setFetchedOrder] = useState<Order | null>(null);
+  const [loadingOrder, setLoadingOrder] = useState(false);
+  const order = orders.find((o) => o.id === params.id) ?? fetchedOrder;
+
+  // Revalidate on mount. The admin advances the order in another session, and
+  // this provider persists across navigation, so the in-context order may be a
+  // stale snapshot. Fall back to a direct RLS-scoped read for deep links / a
+  // just-placed order that isn't in context yet.
+  useEffect(() => {
+    // Wait for the session to hydrate: the read is RLS-scoped to the signed-in
+    // user, so querying before that would be a pointless request (and would
+    // flash "Order not found" behind RequireAuth).
+    if (!params.id || !user) return;
+    let active = true;
+    setLoadingOrder(true);
+    (async () => {
+      // The list refresh already returns the authoritative orders; only fall back
+      // to a direct single-order read for a deep link / just-placed order that is
+      // not in any list yet. Avoids issuing two identical RLS-scoped reads.
+      const list = await refreshOrders();
+      const inList = list?.find((o) => o.id === params.id) ?? null;
+      const fresh = inList ?? (await getOrderById(params.id));
+      if (!active) return;
+      if (fresh) setFetchedOrder(fresh);
+      setLoadingOrder(false);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [params.id, user, refreshOrders]);
 
   return (
     <RequireAuth>
@@ -38,7 +74,11 @@ export default function OrderDetailPage() {
           <span className="text-neutral-700">{params.id}</span>
         </nav>
 
-        {!order ? (
+        {loadingOrder && !order ? (
+          <div className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 py-16 text-center">
+            <p className="text-sm text-neutral-500">Loading order…</p>
+          </div>
+        ) : !order ? (
           <div className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 py-16 text-center">
             <Package size={28} className="mx-auto text-neutral-400" />
             <p className="mt-3 text-sm text-neutral-500">Order not found.</p>
@@ -83,8 +123,10 @@ export default function OrderDetailPage() {
                 <h2 className="mb-4 text-sm font-bold text-black">Order Status</h2>
                 <ol className="flex flex-wrap items-center gap-2">
                   {STEPS.map((s, i) => {
-                    const idx = STEPS.findIndex((x) => x.key === order!.status);
-                    const reached = i <= idx || order!.status === "Delivered";
+                    const idx = STEPS.findIndex(
+                      (x) => x.key === normalizeOrderStatus(order!.status)
+                    );
+                    const reached = idx >= 0 && i <= idx;
                     return (
                       <li key={s.key} className="flex items-center gap-2">
                         <span
@@ -119,8 +161,8 @@ export default function OrderDetailPage() {
             <div className="rounded-lg border border-neutral-200 bg-white p-5">
               <h2 className="mb-3 text-sm font-bold text-black">Items</h2>
               <div className="divide-y divide-neutral-100">
-                {order.items.map((item) => (
-                  <div key={item.productId + item.size + item.color} className="flex items-center gap-3 py-3">
+                {order.items.map((item, index) => (
+                  <div key={`${item.productId}-${item.size || ''}-${item.color || ''}-${index}`} className="flex items-center gap-3 py-3">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={item.image}
@@ -157,18 +199,49 @@ export default function OrderDetailPage() {
                   <CreditCard size={16} /> Payment
                 </h2>
                 <p className="text-sm text-neutral-600">{order.paymentMethod}</p>
+                {order.courierName && (
+                  <p className="mt-1 text-xs text-neutral-500">
+                    Courier: <span className="font-semibold text-black">{order.courierName}</span>
+                    {order.trackingNumber ? (
+                      <>
+                        {" · "}AWB:{" "}
+                        <span className="font-mono font-semibold text-black">{order.trackingNumber}</span>
+                      </>
+                    ) : null}
+                  </p>
+                )}
                 <span
                   className={cn(
                     "mt-2 inline-block rounded-full border px-2.5 py-0.5 text-xs font-semibold",
-                    order.paymentStatus === "Paid" && "border-green-200 bg-green-50 text-green-700",
-                    order.paymentStatus === "Pending" && "border-amber-200 bg-amber-50 text-amber-700",
+                    (order.paymentStatus === "Paid" || order.paymentStatus === "Verified") &&
+                      "border-green-200 bg-green-50 text-green-700",
+                    (order.paymentStatus === "Pending" ||
+                      order.paymentStatus === "Pending Verification") &&
+                      "border-amber-200 bg-amber-50 text-amber-700",
                     order.paymentStatus === "Failed" && "border-red-200 bg-red-50 text-red-700"
                   )}
                 >
-                  {order.paymentStatus}
+                  {paymentStatusLabel(order.paymentStatus)}
                 </span>
               </div>
             </div>
+
+            {/* Manual reference verification — only while payment is unresolved
+                and the method actually needs online verification (not COD). The
+                shared helper is the single source of this rule. */}
+            {requiresOnlinePaymentVerification(order.paymentMethod) &&
+              order.paymentStatus !== "Verified" &&
+              order.paymentStatus !== "Paid" &&
+              (order.paymentStatus === "Pending Verification" ? (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-5 text-sm text-amber-800">
+                  <p className="font-bold text-amber-900">Payment under verification</p>
+                  <p className="mt-1 text-xs">
+                    We received your UTR reference and are verifying it against the merchant account.
+                  </p>
+                </div>
+              ) : (
+                <UtrPaymentForm orderId={order.id} />
+              ))}
 
             {/* Totals */}
             <div className="rounded-lg border border-neutral-200 bg-white p-5">

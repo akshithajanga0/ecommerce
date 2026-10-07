@@ -21,6 +21,7 @@ import {
 import type { AdminOrder, AdminOrderStatus } from "@/lib/adminTypes";
 import { useAdmin } from "@/context/AdminContext";
 import { formatPrice } from "@/lib/utils";
+import { normalizeOrderStatus, orderLifecycleIndex } from "@/lib/orderStatus";
 
 interface OrderDetailModalProps {
   order: AdminOrder | null;
@@ -30,10 +31,9 @@ interface OrderDetailModalProps {
 
 const LIFECYCLE_STEPS: AdminOrderStatus[] = [
   "Placed",
-  "Payment Pending",
-  "Payment Verified",
-  "Packed",
+  "Confirmed",
   "Shipped",
+  "Out for Delivery",
   "Delivered",
 ];
 
@@ -42,7 +42,7 @@ export function OrderDetailModal({
   onClose,
   onOpenInvoice,
 }: OrderDetailModalProps) {
-  const { updateOrderStatus, addInternalOrderNote } = useAdmin();
+  const { updateOrderStatus, addInternalOrderNote, confirmOrder } = useAdmin();
   const [newNote, setNewNote] = useState("");
   const [showShipForm, setShowShipForm] = useState(false);
   const [courierName, setCourierName] = useState(order?.courierName || "Delhivery Surface");
@@ -50,19 +50,21 @@ export function OrderDetailModal({
 
   if (!order) return null;
 
-  const currentStepIndex = LIFECYCLE_STEPS.indexOf(order.orderStatus);
+  const normalizedStatus = normalizeOrderStatus(order.orderStatus);
+  const currentStepIndex = orderLifecycleIndex(order.orderStatus);
 
   const handleNextStatus = () => {
     if (order.orderStatus === "Placed") {
-      updateOrderStatus(order.id, "Payment Pending");
-    } else if (order.orderStatus === "Payment Pending") {
-      updateOrderStatus(order.id, "Payment Verified");
-    } else if (order.orderStatus === "Payment Verified") {
-      updateOrderStatus(order.id, "Packed");
-    } else if (order.orderStatus === "Packed") {
+      // Accepting the order is the ONE action that deducts stock (atomic and
+      // idempotent). A second click is a no-op.
+      confirmOrder(order.id);
+    } else if (normalizedStatus === "Confirmed") {
+      // Confirmed -> Shipped requires courier / AWB details.
       setShowShipForm(true);
     } else if (order.orderStatus === "Shipped") {
-      updateOrderStatus(order.id, "Delivered");
+      updateOrderStatus(order.id, "Out for Delivery", undefined, undefined, "Order is out for delivery");
+    } else if (order.orderStatus === "Out for Delivery") {
+      updateOrderStatus(order.id, "Delivered", undefined, undefined, "Order delivered to customer");
     }
   };
 
@@ -185,8 +187,9 @@ export function OrderDetailModal({
             </div>
 
             {/* Quick advance action button */}
-            {order.orderStatus !== "Delivered" &&
+            {normalizedStatus !== "Delivered" &&
               order.orderStatus !== "Cancelled" &&
+              order.orderStatus !== "Returned" &&
               order.orderStatus !== "Payment Rejected" && (
                 <div className="mt-4 flex justify-end">
                   <button
@@ -195,13 +198,11 @@ export function OrderDetailModal({
                   >
                     <span>
                       {order.orderStatus === "Placed"
-                        ? "Move to Payment Pending"
-                        : order.orderStatus === "Payment Pending"
-                        ? "Confirm Payment (Verify)"
-                        : order.orderStatus === "Payment Verified"
-                        ? "Mark as Packed"
-                        : order.orderStatus === "Packed"
+                        ? "Accept / Confirm Order"
+                        : normalizedStatus === "Confirmed"
                         ? "Dispatch / Ship Order"
+                        : order.orderStatus === "Shipped"
+                        ? "Move to Out for Delivery"
                         : "Mark as Delivered"}
                     </span>
                     <ArrowRight className="h-3.5 w-3.5" />

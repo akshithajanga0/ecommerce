@@ -1,4 +1,5 @@
 import type { Product, ProductVariant } from '@/lib/types';
+import { getProductTotalStock, toStock } from '@/lib/utils';
 
 /**
  * Transform a `products` row (optionally with an embedded `product_variants`
@@ -14,10 +15,17 @@ export function transformProduct(data: any): Product {
       sku: v.sku,
       size: v.size,
       color: v.color,
-      stock: v.stock,
-      reservedStock: v.reserved_stock,
+      stock: toStock(v.stock),
+      reservedStock: v.reserved_stock ?? 0,
       priceOverride: v.price_override,
     })) ?? [];
+
+  // Availability uses the single shared rule (variant total when the product is
+  // sold in variants, else the product-level stock) so the admin panel and the
+  // storefront can never disagree. Without this, a product whose stock lives on
+  // its variants but whose denormalised `products.stock` was never set reads as
+  // 0 and shows "Out of Stock" while the admin reports stock.
+  const stock = getProductTotalStock({ stock: data.stock, variants });
 
   return {
     id: data.id,
@@ -39,7 +47,7 @@ export function transformProduct(data: any): Product {
     badges: data.badges,
     specifications: data.specifications,
     variants,
-    stock: data.stock,
+    stock,
     status: data.status,
     createdAt: data.created_at,
     updatedAt: data.updated_at,

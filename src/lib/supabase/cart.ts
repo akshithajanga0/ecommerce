@@ -8,14 +8,13 @@ export async function getCart(userId: string): Promise<CartItem[]> {
   try {
     const { data, error } = await supabase
       .from('cart_items')
-      .select('*')
+      .select('id, user_id, product_id, quantity, color, size')
       .eq('user_id', userId);
 
     if (error) throw error;
 
     return data.map(transformCartItem);
   } catch (error) {
-    console.error('Error fetching cart:', error);
     return [];
   }
 }
@@ -37,14 +36,13 @@ export async function addToCart(
         color: item.color,
         size: item.size,
       })
-      .select()
+      .select('id, user_id, product_id, quantity, color, size')
       .single();
 
     if (error) throw error;
 
     return transformCartItem(data);
   } catch (error) {
-    console.error('Error adding to cart:', error);
     return null;
   }
 }
@@ -72,7 +70,6 @@ export async function updateCartItem(
 
     return true;
   } catch (error) {
-    console.error('Error updating cart item:', error);
     return false;
   }
 }
@@ -99,7 +96,6 @@ export async function removeFromCart(
 
     return true;
   } catch (error) {
-    console.error('Error removing from cart:', error);
     return false;
   }
 }
@@ -118,7 +114,6 @@ export async function clearCart(userId: string): Promise<boolean> {
 
     return true;
   } catch (error) {
-    console.error('Error clearing cart:', error);
     return false;
   }
 }

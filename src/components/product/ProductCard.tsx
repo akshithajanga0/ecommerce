@@ -54,7 +54,7 @@ export function ProductCard({ product, showAddToCart = true, className }: Produc
   return (
     <>
       <Link
-        href={`/products/${product.slug}`}
+        href={`/product/${product.slug}`}
         className={cn(
           "group relative flex flex-col overflow-hidden rounded-lg border border-neutral-200 bg-white transition-shadow hover:shadow-md",
           className
