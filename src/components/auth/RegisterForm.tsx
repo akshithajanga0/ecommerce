@@ -77,7 +77,7 @@ export function RegisterForm({ next }: { next: string }) {
     <div className="w-full rounded-2xl border border-neutral-200 bg-white p-6 sm:p-8">
       <h1 className="text-2xl font-extrabold text-black">Create Account</h1>
       <p className="mt-1 text-sm text-neutral-500">
-        Join Saara in less than a minute
+        Join Miracle Collections in less than a minute
       </p>
 
       <form onSubmit={submit} noValidate className="mt-6 space-y-4">

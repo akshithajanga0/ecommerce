@@ -3,7 +3,7 @@ import { LoginForm } from "@/components/auth/LoginForm";
 
 export const metadata: Metadata = {
   title: "Login",
-  description: "Login to your Saara account.",
+  description: "",
 };
 
 interface Props {

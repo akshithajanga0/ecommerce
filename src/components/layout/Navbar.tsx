@@ -48,12 +48,10 @@ export function Navbar() {
   const activeCategory = pathname === "/products" ? searchParams.get("category") ?? "all" : "";
   const [menuOpen, setMenuOpen] = useState(false);
   const [expandedCat, setExpandedCat] = useState<string | null>(null);
-  const [catOpen, setCatOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [canHover, setCanHover] = useState(true);
-  const catRef = useRef<HTMLDivElement>(null);
   const userRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
 
@@ -91,7 +89,6 @@ export function Navbar() {
 
   useEffect(() => {
     setMenuOpen(false);
-    setCatOpen(false);
     setUserOpen(false);
     setNotifOpen(false);
   }, [pathname]);
@@ -102,18 +99,12 @@ export function Navbar() {
 
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
-      if (catRef.current && !catRef.current.contains(e.target as Node)) setCatOpen(false);
       if (userRef.current && !userRef.current.contains(e.target as Node)) setUserOpen(false);
       if (notifRef.current && !notifRef.current.contains(e.target as Node)) setNotifOpen(false);
     };
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
   }, []);
-
-  const goCategory = (id: string) => {
-    router.push(`/products?category=${id}`);
-    setMenuOpen(false);
-  };
 
   const iconBtn =
     "relative flex flex-col items-center justify-center gap-0.5 rounded-md px-2 py-1.5 text-neutral-700 hover:bg-neutral-100 hover:text-black transition-colors";
@@ -152,53 +143,15 @@ export function Navbar() {
 
           <Logo />
 
-          {/* Categories dropdown (desktop) */}
-          <div className="relative ml-2 hidden lg:block" ref={catRef}>
-            <button
-              onClick={() => setCatOpen((o) => !o)}
-              className={cn(
-                "flex h-11 items-center gap-1.5 rounded-md px-3 text-sm font-semibold text-black transition-colors hover:bg-neutral-100",
-                catOpen && "bg-neutral-100"
-              )}
-            >
-              <LayoutGrid size={18} />
-              Categories
-              <ChevronDown
-                size={16}
-                className={cn("transition-transform", catOpen && "rotate-180")}
-              />
-            </button>
-            {catOpen && (
-              <div className="absolute left-0 top-full z-50 mt-2 w-64 overflow-hidden rounded-md border border-neutral-200 bg-white py-1 shadow-lg animate-fade-in">
-                <Link
-                  href="/products"
-                  className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-black hover:bg-neutral-50"
-                >
-                  <Package size={16} className="text-neutral-400" />
-                  All Products
-                </Link>
-                {categories.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => goCategory(c.id)}
-                    className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-neutral-700 hover:bg-neutral-50 hover:text-black"
-                  >
-                    <LayoutGrid size={16} className="text-neutral-400" />
-                    {c.name}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
           {/* Search (desktop) */}
-          <SearchBar className="ml-2 hidden flex-1 lg:flex" />
+          <SearchBar className="ml-4 hidden flex-1 lg:flex" />
 
           <div className="ml-auto flex items-center gap-1 lg:ml-0">
             {/* Theme toggle */}
             <button
               onClick={toggleTheme}
               aria-label="Toggle theme"
+              suppressHydrationWarning
               className="flex h-11 items-center justify-center rounded-md px-2 text-neutral-600 hover:bg-neutral-100 hover:text-black"
             >
               {mounted && theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}

@@ -60,7 +60,7 @@ export function LoginForm({ next }: { next: string }) {
   return (
     <div className="w-full rounded-2xl border border-neutral-200 bg-white p-6 sm:p-8">
       <h1 className="text-2xl font-extrabold text-black">Welcome back</h1>
-      <p className="mt-1 text-sm text-neutral-500">Login to your Saara account</p>
+      <p className="mt-1 text-sm text-neutral-500">Login to your account</p>
 
       <form onSubmit={submit} noValidate className="mt-6 space-y-4">
         {errors.form && (

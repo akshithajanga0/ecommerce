@@ -106,7 +106,7 @@ export default function AdminDashboardPage() {
           <div className="flex items-center gap-2">
             <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
             <h1 className="text-xl sm:text-2xl font-extrabold text-black tracking-tight">
-              {settings.storeName} — Admin Dashboard
+              Miracle Collections — Admin Dashboard
             </h1>
           </div>
           <p className="text-xs text-neutral-500">
