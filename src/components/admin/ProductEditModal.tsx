@@ -46,11 +46,13 @@ export function ProductEditModal({ product, onClose }: ProductEditModalProps) {
   const [newImageUrl, setNewImageUrl] = useState("");
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
 
   const [variants, setVariants] = useState<AdminVariant[]>(
     product?.variants || [
-      { id: "v1", sku: "MC-NEW-BLK-M", size: "M", color: "Black", stock: 15, reservedStock: 0 },
-      { id: "v2", sku: "MC-NEW-BLK-L", size: "L", color: "Black", stock: 10, reservedStock: 0 },
+      { id: "v1", sku: "", size: "M", color: "Black", stock: 15, reservedStock: 0 },
+      { id: "v2", sku: "", size: "L", color: "Black", stock: 10, reservedStock: 0 },
     ]
   );
   // Product-level stock. Used only when the product has NO variants; when
@@ -147,13 +149,15 @@ export function ProductEditModal({ product, onClose }: ProductEditModalProps) {
     setUploadError("");
 
     try {
-      const result = await uploadProductImage(file);
+      const formData = new FormData();
+      formData.append("file", file);
+      const result = await uploadProductImage(formData);
       if (result.success && result.data) {
         setImages([...images, result.data.url]);
       } else if (!result.success) {
         setUploadError(result.error || "Upload failed. Please try again.");
       }
-    } catch (error) {
+    } catch {
       setUploadError("Upload failed. Please try again.");
     } finally {
       setUploading(false);
@@ -188,37 +192,48 @@ export function ProductEditModal({ product, onClose }: ProductEditModalProps) {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
-      alert("Product name is required");
+      setSubmitError("Product name is required");
       return;
     }
 
-    const payload: Partial<AdminProduct> = {
-      ...(product ? { id: product.id } : {}),
-      name: name.trim(),
-      slug: slug.trim() || name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
-      brand: brand.trim(),
-      categoryId,
-      subCategory,
-      gender,
-      price: Number(price),
-      mrp: Number(mrp),
-      costPrice: Number(costPrice),
-      status,
-      description,
-      badges,
-      images: images.length > 0 ? images : ["https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=800&q=80"],
-      variants,
-      stock: Number(stock) || 0,
-      specifications: specs.filter((s) => s.label.trim() && s.value.trim()),
-      colors: Array.from(new Set(variants.map((v) => v.color))),
-      sizes: Array.from(new Set(variants.map((v) => v.size))),
-    };
+    setSubmitError("");
+    setIsSubmitting(true);
 
-    saveProduct(payload);
-    onClose();
+    try {
+      const payload: Partial<AdminProduct> = {
+        ...(product ? { id: product.id } : {}),
+        name: name.trim(),
+        slug: slug.trim() || name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+        brand: brand.trim(),
+        categoryId,
+        subCategory,
+        gender,
+        price: Number(price),
+        mrp: Number(mrp),
+        costPrice: Number(costPrice),
+        status,
+        description,
+        badges,
+        images: images.length > 0 ? images : ["https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=800&q=80"],
+        variants,
+        stock: Number(stock) || 0,
+        specifications: specs.filter((s) => s.label.trim() && s.value.trim()),
+        colors: Array.from(new Set(variants.map((v) => v.color))),
+        sizes: Array.from(new Set(variants.map((v) => v.size))),
+      };
+
+      await saveProduct(payload);
+      onClose();
+    } catch (err: unknown) {
+      console.error("Failed to save product:", err);
+      const msg = err instanceof Error ? err.message : "Failed to save product. Please try again.";
+      setSubmitError(msg);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -247,6 +262,19 @@ export function ProductEditModal({ product, onClose }: ProductEditModalProps) {
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6 text-xs">
+          {submitError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-red-700 text-xs flex items-center justify-between">
+              <span>{submitError}</span>
+              <button
+                type="button"
+                onClick={() => setSubmitError("")}
+                className="text-red-500 hover:text-red-700 ml-2"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+
           {/* Basic Info */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="sm:col-span-2 space-y-1">
@@ -728,15 +756,18 @@ export function ProductEditModal({ product, onClose }: ProductEditModalProps) {
             <button
               type="button"
               onClick={onClose}
-              className="rounded-md border border-neutral-300 bg-white px-4 py-2 text-xs font-semibold text-black hover:bg-neutral-50 transition-colors"
+              disabled={isSubmitting}
+              className="rounded-md border border-neutral-300 bg-white px-4 py-2 text-xs font-semibold text-black hover:bg-neutral-50 transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="rounded-md bg-black hover:bg-neutral-800 px-5 py-2 text-xs font-semibold text-white shadow-sm transition-colors"
+              disabled={isSubmitting || uploading}
+              className="flex items-center gap-1.5 rounded-md bg-black hover:bg-neutral-800 px-5 py-2 text-xs font-semibold text-white shadow-sm transition-colors disabled:opacity-50"
             >
-              {product ? "Save Changes" : "Create Product"}
+              {isSubmitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              <span>{isSubmitting ? "Saving..." : product ? "Save Changes" : "Create Product"}</span>
             </button>
           </div>
         </form>

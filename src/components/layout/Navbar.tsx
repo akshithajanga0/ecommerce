@@ -140,7 +140,7 @@ export function Navbar() {
 
       {/* Main bar */}
       <div className="mx-auto max-w-7xl px-4 pt-3 sm:px-6">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-3">
           {/* Hamburger (mobile) */}
           <button
             className="rounded-md p-2 text-black hover:bg-neutral-100 lg:hidden"
@@ -330,6 +330,17 @@ export function Navbar() {
             canHover ? "overflow-visible" : "overflow-x-auto"
           )}
         >
+          <Link
+            href="/"
+            className={cn(
+              "relative whitespace-nowrap px-2.5 py-1.5 text-sm font-medium transition-colors",
+              pathname === "/"
+                ? "font-bold text-black after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full after:bg-black"
+                : "text-neutral-600 hover:text-black"
+            )}
+          >
+            Home
+          </Link>
           <Link
             href="/products"
             className={cn(

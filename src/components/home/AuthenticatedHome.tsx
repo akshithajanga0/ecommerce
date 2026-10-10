@@ -120,7 +120,7 @@ export function AuthenticatedHome({ user }: { user: User }) {
                 Miracle Member Experience
               </span>
             </div>
-            <h1 className="text-3xl font-black tracking-tight text-black sm:text-4xl lg:text-5xl">
+            <h1 className="text-2xl xs:text-3xl font-black tracking-tight text-black sm:text-4xl lg:text-5xl">
               Welcome back,{" "}
               <span className="underline decoration-neutral-300 decoration-2 underline-offset-8">
                 {firstName}
@@ -159,7 +159,7 @@ export function AuthenticatedHome({ user }: { user: User }) {
         </div>
 
         {/* Hero banner area below greeting */}
-        <div className="relative overflow-hidden rounded-2xl bg-neutral-900 px-6 py-10 text-white shadow-xl sm:px-10 sm:py-12 lg:px-14">
+        <div className="relative overflow-hidden rounded-2xl bg-neutral-900 px-4 py-8 text-white shadow-xl sm:px-10 sm:py-12 lg:px-14">
           <div className="pointer-events-none absolute -right-20 -top-20 h-96 w-96 rounded-full bg-neutral-800/60 blur-3xl" />
           <div className="pointer-events-none absolute -bottom-20 -left-20 h-96 w-96 rounded-full bg-neutral-800/40 blur-3xl" />
 
@@ -174,7 +174,7 @@ export function AuthenticatedHome({ user }: { user: User }) {
                 </span>
               </div>
 
-              <h2 className="text-2xl font-black tracking-tight text-white sm:text-4xl lg:text-5xl lg:leading-tight">
+              <h2 className="text-xl xs:text-2xl font-black tracking-tight text-white sm:text-4xl lg:text-5xl lg:leading-tight">
                 Curated Styles, <br />
                 <span className="text-neutral-300">Tailored For Your Taste.</span>
               </h2>
@@ -428,7 +428,7 @@ export function AuthenticatedHome({ user }: { user: User }) {
 
       {/* 6. Special Offer / Promotional Banner */}
       <section className="mx-auto max-w-7xl px-4 pt-14 sm:px-6">
-        <div className="relative overflow-hidden rounded-3xl bg-neutral-900 px-6 py-12 text-white shadow-lg sm:px-12 lg:px-16 lg:py-14">
+        <div className="relative overflow-hidden rounded-3xl bg-neutral-900 px-4 py-8 text-white shadow-lg sm:px-12 lg:px-16 lg:py-14">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-neutral-800 via-neutral-900 to-black opacity-90" />
 
           <div className="relative z-10 flex flex-col items-center justify-between gap-8 text-center lg:flex-row lg:text-left">
@@ -438,7 +438,7 @@ export function AuthenticatedHome({ user }: { user: User }) {
                 Member Exclusive Highlight
               </span>
 
-              <h2 className="mt-4 text-3xl font-black tracking-tight text-white sm:text-4xl lg:text-5xl">
+              <h2 className="mt-4 text-2xl xs:text-3xl font-black tracking-tight text-white sm:text-4xl lg:text-5xl">
                 Refresh Your Style
               </h2>
 
@@ -453,16 +453,16 @@ export function AuthenticatedHome({ user }: { user: User }) {
               </div>
             </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row lg:flex-col xl:flex-row">
+            <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row lg:flex-col xl:flex-row">
               <Link
                 href="/products"
-                className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-white px-8 text-sm font-extrabold text-black transition-all hover:bg-neutral-100 hover:shadow-md"
+                className="inline-flex h-12 w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-white px-6 sm:px-8 text-sm font-extrabold text-black transition-all hover:bg-neutral-100 hover:shadow-md"
               >
                 Shop Now <ArrowRight size={16} />
               </Link>
               <Link
                 href="/products?sort=discount"
-                className="inline-flex h-12 items-center justify-center rounded-xl border border-white/20 bg-white/5 px-6 text-sm font-semibold text-white backdrop-blur-sm transition-colors hover:bg-white/15"
+                className="inline-flex h-12 w-full sm:w-auto items-center justify-center rounded-xl border border-white/20 bg-white/5 px-6 text-sm font-semibold text-white backdrop-blur-sm transition-colors hover:bg-white/15"
               >
                 View Offers
               </Link>

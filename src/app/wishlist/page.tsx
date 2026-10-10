@@ -77,7 +77,7 @@ export default function WishlistPage() {
         {wishlistProducts.map((p) => (
           <div key={p.id} className="flex flex-col">
             <ProductCard product={p} showAddToCart={false} />
-            <div className="-mt-1 grid grid-cols-2 gap-2 rounded-b-lg border border-t-0 border-neutral-200 bg-white p-2.5">
+            <div className="-mt-1 flex flex-col xs:grid xs:grid-cols-2 gap-1.5 xs:gap-2 rounded-b-lg border border-t-0 border-neutral-200 bg-white p-2 xs:p-2.5">
               <button
                 onClick={() => moveToCart(p.id)}
                 className="inline-flex h-8 items-center justify-center gap-1 rounded-md bg-black text-[11px] font-semibold text-white hover:bg-neutral-800"

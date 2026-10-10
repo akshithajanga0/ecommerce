@@ -1,34 +1,57 @@
 "use server";
 
-import { v2 as cloudinary } from "cloudinary";
 import { requireAdmin } from "@/lib/supabase/require-admin";
+import { adminSupabase } from "@/lib/supabase/admin";
 import { ADMIN_MESSAGES, type AdminActionResult } from "@/lib/adminActionResult";
 
-// Configure Cloudinary with environment variables
-cloudinary.config({
-  cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-  secure: true,
-});
+const BUCKET_NAME = "product-images";
 
 /**
- * Upload an image to Cloudinary (admin only).
- *
- * This server action:
- * - Requires admin authorization
- * - Validates file type and size
- * - Uploads to Cloudinary using signed upload
- * - Returns the secure URL
+ * Ensures the public product-images bucket exists.
+ */
+async function ensureBucketExists(): Promise<void> {
+  const { data: bucket } = await adminSupabase.storage.getBucket(BUCKET_NAME);
+  if (!bucket) {
+    await adminSupabase.storage.createBucket(BUCKET_NAME, {
+      public: true,
+      fileSizeLimit: 5 * 1024 * 1024,
+      allowedMimeTypes: ["image/jpeg", "image/jpg", "image/png", "image/webp"],
+    });
+  }
+}
+
+/**
+ * Upload a product image to Supabase Storage (admin only).
  *
  * Supported formats: jpg, jpeg, png, webp
  * Max size: 5MB
  */
 export async function uploadProductImage(
-  file: File
+  input: FormData | File
 ): Promise<AdminActionResult<{ url: string; publicId: string }>> {
   const guard = await requireAdmin();
   if (!guard.ok) return guard.failure;
+
+  let file: File;
+  if (input instanceof FormData) {
+    const f = input.get("file");
+    if (!f || !(f instanceof File)) {
+      return {
+        success: false,
+        status: 400,
+        error: "No image file provided.",
+      };
+    }
+    file = f;
+  } else if (input instanceof File) {
+    file = input;
+  } else {
+    return {
+      success: false,
+      status: 400,
+      error: "Invalid upload payload.",
+    };
+  }
 
   // Validate file type
   const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
@@ -51,54 +74,57 @@ export async function uploadProductImage(
   }
 
   try {
+    await ensureBucketExists();
+
     // Convert File to buffer
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    // Upload to Cloudinary with folder structure
-    const result = await new Promise<{ secure_url: string; public_id: string }>(
-      (resolve, reject) => {
-        cloudinary.uploader.upload_stream(
-          {
-            folder: "products",
-            resource_type: "image",
-            allowed_formats: ["jpg", "jpeg", "png", "webp"],
-            max_file_size: maxSize,
-            transformation: [
-              { quality: "auto", fetch_format: "auto" },
-              { width: 1200, height: 1200, crop: "limit" },
-            ],
-          },
-          (error, result) => {
-            if (error) reject(error);
-            else if (result) resolve(result);
-            else reject(new Error("Upload failed"));
-          }
-        ).end(buffer);
-      }
-    );
+    // Determine clean file extension
+    const ext = file.name ? file.name.split(".").pop()?.toLowerCase() || "jpg" : "jpg";
+    const cleanExt = ["jpg", "jpeg", "png", "webp"].includes(ext) ? ext : "jpg";
+    const fileName = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${cleanExt}`;
+    const filePath = `products/${fileName}`;
+
+    const { data, error } = await adminSupabase.storage
+      .from(BUCKET_NAME)
+      .upload(filePath, buffer, {
+        contentType: file.type || `image/${cleanExt === "jpg" ? "jpeg" : cleanExt}`,
+        upsert: false,
+      });
+
+    if (error) {
+      console.error("Supabase Storage upload error:", error);
+      return {
+        success: false,
+        status: 500,
+        error: error.message || ADMIN_MESSAGES.failed,
+      };
+    }
+
+    const { data: urlData } = adminSupabase.storage
+      .from(BUCKET_NAME)
+      .getPublicUrl(data.path);
 
     return {
       success: true,
       data: {
-        url: result.secure_url,
-        publicId: result.public_id,
+        url: urlData.publicUrl,
+        publicId: data.path,
       },
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error uploading image:", error);
     return {
       success: false,
       status: 500,
-      error: ADMIN_MESSAGES.failed,
+      error: error?.message || ADMIN_MESSAGES.failed,
     };
   }
 }
 
 /**
- * Delete an image from Cloudinary (admin only).
- *
- * Use this when replacing an image to avoid orphaned assets.
+ * Delete an image from Supabase Storage (admin only).
  */
 export async function deleteProductImage(
   publicId: string
@@ -107,14 +133,10 @@ export async function deleteProductImage(
   if (!guard.ok) return guard.failure;
 
   try {
-    await cloudinary.uploader.destroy(publicId, {
-      resource_type: "image",
-    });
-
+    await adminSupabase.storage.from(BUCKET_NAME).remove([publicId]);
     return { success: true, data: undefined };
   } catch (error) {
     console.error("Error deleting image:", error);
-    // Don't fail the operation if deletion fails - the product update is more important
     return { success: true, data: undefined };
   }
 }

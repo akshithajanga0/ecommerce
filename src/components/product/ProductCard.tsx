@@ -130,7 +130,7 @@ export function ProductCard({ product, showAddToCart = true, className }: Produc
           </button>
         </div>
 
-        <div className="flex flex-1 flex-col p-3">
+        <div className="flex flex-1 flex-col p-2.5 sm:p-3">
           <p className="truncate text-xs text-neutral-500">{product.brand}</p>
           <h3 className="mt-0.5 line-clamp-2 text-sm font-semibold leading-snug text-black">
             {product.name}

@@ -218,16 +218,16 @@ function CheckoutInner() {
       <h1 className="mb-5 text-xl font-extrabold text-black sm:text-2xl">Checkout</h1>
 
       {/* Steps indicator */}
-      <div className="mb-6 flex items-center gap-2 sm:gap-3">
+      <div className="mb-6 flex items-center gap-2 sm:gap-3 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden pb-1">
         {steps.map((s, i) => {
           const active = i === step;
           const done = i < step;
           return (
-            <div key={s.label} className="flex items-center gap-2 sm:gap-3">
+            <div key={s.label} className="flex items-center gap-2 sm:gap-3 shrink-0">
               <div className="flex items-center gap-2">
                 <span
                   className={cn(
-                    "flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold",
+                    "flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold shrink-0",
                     done
                       ? "bg-black text-white"
                       : active
@@ -239,14 +239,14 @@ function CheckoutInner() {
                 </span>
                 <span
                   className={cn(
-                    "text-xs font-semibold sm:text-sm",
+                    "text-xs font-semibold sm:text-sm whitespace-nowrap",
                     active ? "text-black" : "text-neutral-400"
                   )}
                 >
                   {s.label}
                 </span>
               </div>
-              {i < steps.length - 1 && <div className="h-px w-6 bg-neutral-300 sm:w-12" />}
+              {i < steps.length - 1 && <div className="h-px w-3 sm:w-12 bg-neutral-300 shrink-0" />}
             </div>
           );
         })}
@@ -420,11 +420,11 @@ function CheckoutInner() {
               {payment === "upi" && (
                 <div className="mt-4">
                   <label className="mb-1.5 block text-sm font-medium text-black">UPI ID</label>
-                  <div className="flex gap-2">
+                  <div className="flex flex-col sm:flex-row gap-2">
                     <input value={upiId} onChange={(e) => setUpiId(e.target.value)} placeholder="username@upi" className={input} />
                     <Button
                       variant="outline"
-                      className="shrink-0"
+                      className="shrink-0 w-full sm:w-auto"
                       onClick={() => (upiId.trim() ? toast("UPI verified") : toast("Enter a valid UPI ID", "error"))}
                     >
                       Verify UPI

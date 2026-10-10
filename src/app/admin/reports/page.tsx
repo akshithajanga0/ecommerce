@@ -188,42 +188,44 @@ export default function AdminReportsPage() {
             <div className="bg-neutral-50 p-4 border-b border-neutral-200 text-xs font-semibold text-neutral-700">
               Order Transactions Ledger
             </div>
-            <table className="w-full text-left text-xs">
-              <thead className="border-b border-neutral-200 text-neutral-500 uppercase text-[11px] font-semibold bg-neutral-50/50">
-                <tr>
-                  <th className="p-3">Order ID</th>
-                  <th className="p-3">Date</th>
-                  <th className="p-3">Customer</th>
-                  <th className="p-3 text-right">Gross Amount</th>
-                  <th className="p-3 text-right">Discount</th>
-                  <th className="p-3 text-right">Net Total</th>
-                  <th className="p-3">Payment Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-neutral-200">
-                {orders.map((o) => (
-                  <tr key={o.id} className="hover:bg-neutral-50 transition">
-                    <td className="p-3 font-mono font-bold text-black">#{o.id}</td>
-                    <td className="p-3 text-neutral-500">
-                      {new Date(o.placedAt).toLocaleDateString()}
-                    </td>
-                    <td className="p-3 text-black font-medium">{o.customerName}</td>
-                    <td className="p-3 text-right font-mono text-neutral-700">
-                      {formatPrice(o.subtotal)}
-                    </td>
-                    <td className="p-3 text-right font-mono text-emerald-600">
-                      {o.discount > 0 ? `-${formatPrice(o.discount)}` : "—"}
-                    </td>
-                    <td className="p-3 text-right font-mono font-bold text-black">
-                      {formatPrice(o.total)}
-                    </td>
-                    <td className="p-3">
-                      <span className="text-emerald-700 font-semibold">{o.paymentStatus}</span>
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="border-b border-neutral-200 text-neutral-500 uppercase text-[11px] font-semibold bg-neutral-50/50">
+                  <tr>
+                    <th className="p-3">Order ID</th>
+                    <th className="p-3">Date</th>
+                    <th className="p-3">Customer</th>
+                    <th className="p-3 text-right">Gross Amount</th>
+                    <th className="p-3 text-right">Discount</th>
+                    <th className="p-3 text-right">Net Total</th>
+                    <th className="p-3">Payment Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-neutral-200">
+                  {orders.map((o) => (
+                    <tr key={o.id} className="hover:bg-neutral-50 transition">
+                      <td className="p-3 font-mono font-bold text-black">#{o.id}</td>
+                      <td className="p-3 text-neutral-500">
+                        {new Date(o.placedAt).toLocaleDateString()}
+                      </td>
+                      <td className="p-3 text-black font-medium">{o.customerName}</td>
+                      <td className="p-3 text-right font-mono text-neutral-700">
+                        {formatPrice(o.subtotal)}
+                      </td>
+                      <td className="p-3 text-right font-mono text-emerald-600">
+                        {o.discount > 0 ? `-${formatPrice(o.discount)}` : "—"}
+                      </td>
+                      <td className="p-3 text-right font-mono font-bold text-black">
+                        {formatPrice(o.total)}
+                      </td>
+                      <td className="p-3">
+                        <span className="text-emerald-700 font-semibold">{o.paymentStatus}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
@@ -259,40 +261,42 @@ export default function AdminReportsPage() {
           </div>
 
           <div className="rounded-xl border border-neutral-200 bg-white overflow-hidden shadow-sm">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-neutral-50 border-b border-neutral-200 text-neutral-500 uppercase text-[11px] font-semibold">
-                <tr>
-                  <th className="p-3">Product Name</th>
-                  <th className="p-3">Category</th>
-                  <th className="p-3 text-right">Units</th>
-                  <th className="p-3 text-right">Cost / Unit</th>
-                  <th className="p-3 text-right">Retail / Unit</th>
-                  <th className="p-3 text-right">Total Cost</th>
-                  <th className="p-3 text-right">Total Retail</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-neutral-200">
-                {products.map((p) => {
-                  const units = getProductTotalStock(p);
-                  const cost = p.costPrice || p.price * 0.45;
-                  return (
-                    <tr key={p.id} className="hover:bg-neutral-50 transition">
-                      <td className="p-3 font-semibold text-black">{p.name}</td>
-                      <td className="p-3 text-neutral-600 capitalize">{p.categoryId}</td>
-                      <td className="p-3 text-right font-mono text-neutral-700">{units}</td>
-                      <td className="p-3 text-right font-mono text-neutral-500">{formatPrice(cost)}</td>
-                      <td className="p-3 text-right font-mono text-neutral-700">{formatPrice(p.price)}</td>
-                      <td className="p-3 text-right font-mono text-black font-semibold">
-                        {formatPrice(units * cost)}
-                      </td>
-                      <td className="p-3 text-right font-mono text-black font-bold">
-                        {formatPrice(units * p.price)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-neutral-50 border-b border-neutral-200 text-neutral-500 uppercase text-[11px] font-semibold">
+                  <tr>
+                    <th className="p-3">Product Name</th>
+                    <th className="p-3">Category</th>
+                    <th className="p-3 text-right">Units</th>
+                    <th className="p-3 text-right">Cost / Unit</th>
+                    <th className="p-3 text-right">Retail / Unit</th>
+                    <th className="p-3 text-right">Total Cost</th>
+                    <th className="p-3 text-right">Total Retail</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-200">
+                  {products.map((p) => {
+                    const units = getProductTotalStock(p);
+                    const cost = p.costPrice || p.price * 0.45;
+                    return (
+                      <tr key={p.id} className="hover:bg-neutral-50 transition">
+                        <td className="p-3 font-semibold text-black">{p.name}</td>
+                        <td className="p-3 text-neutral-600 capitalize">{p.categoryId}</td>
+                        <td className="p-3 text-right font-mono text-neutral-700">{units}</td>
+                        <td className="p-3 text-right font-mono text-neutral-500">{formatPrice(cost)}</td>
+                        <td className="p-3 text-right font-mono text-neutral-700">{formatPrice(p.price)}</td>
+                        <td className="p-3 text-right font-mono text-black font-semibold">
+                          {formatPrice(units * cost)}
+                        </td>
+                        <td className="p-3 text-right font-mono text-black font-bold">
+                          {formatPrice(units * p.price)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
@@ -341,34 +345,36 @@ export default function AdminReportsPage() {
           <div className="bg-neutral-50 p-4 border-b border-neutral-200 text-xs font-semibold text-neutral-700">
             UPI Merchant Settlements & UTR Reconciliation Log
           </div>
-          <table className="w-full text-left text-xs">
-            <thead className="border-b border-neutral-200 text-neutral-500 uppercase text-[11px] font-semibold bg-neutral-50/50">
-              <tr>
-                <th className="p-3">Order ID</th>
-                <th className="p-3">Customer</th>
-                <th className="p-3">UTR Reference</th>
-                <th className="p-3 text-right">Amount</th>
-                <th className="p-3">Status</th>
-                <th className="p-3">Verified By</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-neutral-200">
-              {payments.map((p) => (
-                <tr key={p.id} className="hover:bg-neutral-50 transition">
-                  <td className="p-3 font-mono font-bold text-black">#{p.orderId}</td>
-                  <td className="p-3 text-neutral-700">{p.customerName}</td>
-                  <td className="p-3 font-mono text-black font-semibold">{p.utrNumber}</td>
-                  <td className="p-3 text-right font-mono font-bold text-black">
-                    {formatPrice(p.amount)}
-                  </td>
-                  <td className="p-3">
-                    <span className="capitalize text-neutral-700 font-medium">{p.status.replace("_", " ")}</span>
-                  </td>
-                  <td className="p-3 text-neutral-500">{p.verifiedBy || "Pending"}</td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="border-b border-neutral-200 text-neutral-500 uppercase text-[11px] font-semibold bg-neutral-50/50">
+                <tr>
+                  <th className="p-3">Order ID</th>
+                  <th className="p-3">Customer</th>
+                  <th className="p-3">UTR Reference</th>
+                  <th className="p-3 text-right">Amount</th>
+                  <th className="p-3">Status</th>
+                  <th className="p-3">Verified By</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-neutral-200">
+                {payments.map((p) => (
+                  <tr key={p.id} className="hover:bg-neutral-50 transition">
+                    <td className="p-3 font-mono font-bold text-black">#{p.orderId}</td>
+                    <td className="p-3 text-neutral-700">{p.customerName}</td>
+                    <td className="p-3 font-mono text-black font-semibold">{p.utrNumber}</td>
+                    <td className="p-3 text-right font-mono font-bold text-black">
+                      {formatPrice(p.amount)}
+                    </td>
+                    <td className="p-3">
+                      <span className="capitalize text-neutral-700 font-medium">{p.status.replace("_", " ")}</span>
+                    </td>
+                    <td className="p-3 text-neutral-500">{p.verifiedBy || "Pending"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

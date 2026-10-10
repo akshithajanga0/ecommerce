@@ -93,7 +93,7 @@ export function CategorySection() {
             className="group relative flex flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white transition-all duration-300 hover:-translate-y-1 hover:border-black/30 hover:shadow-xl"
           >
             {/* Image Container with Hover Zoom */}
-            <div className="relative aspect-[16/10] overflow-hidden bg-neutral-100">
+            <div className="relative min-h-[290px] xs:min-h-0 xs:aspect-[16/10] overflow-hidden bg-neutral-100">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={cat.image}
@@ -172,7 +172,7 @@ export function CategorySection() {
               href={c.href}
               className="group relative flex items-center gap-3 overflow-hidden rounded-xl border border-neutral-200 bg-white p-2.5 transition-all hover:border-black/30 hover:shadow-sm"
             >
-              <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-neutral-100">
+              <div className="relative h-11 w-11 xs:h-14 xs:w-14 shrink-0 overflow-hidden rounded-lg bg-neutral-100">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={c.image}

@@ -67,7 +67,7 @@ export function CompleteTheLook() {
 
   return (
     <section className="mx-auto max-w-7xl px-4 pt-14 sm:px-6">
-      <div className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm sm:p-8 lg:p-10">
+      <div className="rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm sm:p-8 lg:p-10">
         {/* Section Header */}
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
           <div>
@@ -176,7 +176,7 @@ export function CompleteTheLook() {
           </div>
 
           {/* Bundle Summary & CTA (4 cols) */}
-          <div className="flex flex-col justify-center rounded-2xl border border-neutral-200 bg-neutral-900 p-6 text-white lg:col-span-4">
+          <div className="flex flex-col justify-center rounded-2xl border border-neutral-200 bg-neutral-900 p-4 sm:p-6 text-white lg:col-span-4">
             <span className="text-xs font-bold uppercase tracking-wider text-neutral-400">
               Complete Set Value
             </span>

@@ -615,7 +615,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         return product as AdminProduct;
       } else {
         adminToast(result.error || "Failed to update product", "error");
-        return product as AdminProduct;
+        throw new Error(result.error || "Failed to update product");
       }
     } else {
       const result = await adminCreateProduct(product as any);
@@ -626,7 +626,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         return product as AdminProduct;
       } else {
         adminToast(result.error || "Failed to create product", "error");
-        return product as AdminProduct;
+        throw new Error(result.error || "Failed to create product");
       }
     }
   }, [products, logAudit, adminToast, applyProductResult]);

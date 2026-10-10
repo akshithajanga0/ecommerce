@@ -163,16 +163,42 @@ export async function adminCreateProduct(
     // admin form reuses placeholder ids ("v1", "v2"), which would collide on
     // the `product_variants` primary key for the second product created.
     if (product.variants && product.variants.length > 0) {
-      const variants = product.variants.map((v, index) => ({
-        id: crypto.randomUUID(),
-        product_id: data.id,
-        sku: (v.sku ?? '').trim() || `${slug}-${index + 1}`,
-        size: v.size,
-        color: v.color,
-        stock: toStock(v.stock),
-        reserved_stock: v.reservedStock ?? 0,
-        price_override: v.priceOverride,
-      }));
+      const candidateSkus = product.variants
+        .map((v) => (v.sku ?? "").trim())
+        .filter(Boolean);
+
+      let existingSkuSet = new Set<string>();
+      if (candidateSkus.length > 0) {
+        const { data: clashes } = await adminSupabase
+          .from("product_variants")
+          .select("sku")
+          .in("sku", candidateSkus);
+        if (clashes) {
+          existingSkuSet = new Set(clashes.map((c) => c.sku));
+        }
+      }
+
+      const seenInBatch = new Set<string>();
+      const variants = product.variants.map((v, index) => {
+        let baseSku = (v.sku ?? "").trim();
+        if (!baseSku || existingSkuSet.has(baseSku) || seenInBatch.has(baseSku)) {
+          const sizePart = (v.size ?? "").trim() ? `-${v.size}` : "";
+          const colorPart = (v.color ?? "").trim() ? `-${v.color.slice(0, 3)}` : "";
+          baseSku = `${slug}${sizePart}${colorPart}-${crypto.randomUUID().slice(0, 6)}`.toUpperCase();
+        }
+        seenInBatch.add(baseSku);
+
+        return {
+          id: crypto.randomUUID(),
+          product_id: data.id,
+          sku: baseSku,
+          size: v.size,
+          color: v.color,
+          stock: toStock(v.stock),
+          reserved_stock: v.reservedStock ?? 0,
+          price_override: v.priceOverride,
+        };
+      });
 
       const { error: variantError } = await adminSupabase
         .from('product_variants')
@@ -281,16 +307,42 @@ export async function adminUpdateProduct(
 
       // Insert new variants (fresh ids: the previous rows were just deleted and
       // placeholder ids from the form must never be reused across products).
-      const variants = product.variants.map((v, index) => ({
-        id: crypto.randomUUID(),
-        product_id: id,
-        sku: (v.sku ?? '').trim() || `${id}-${index + 1}`,
-        size: v.size,
-        color: v.color,
-        stock: toStock(v.stock),
-        reserved_stock: v.reservedStock ?? 0,
-        price_override: v.priceOverride,
-      }));
+      const candidateSkus = product.variants
+        .map((v) => (v.sku ?? "").trim())
+        .filter(Boolean);
+
+      let existingSkuSet = new Set<string>();
+      if (candidateSkus.length > 0) {
+        const { data: clashes } = await adminSupabase
+          .from("product_variants")
+          .select("sku")
+          .in("sku", candidateSkus);
+        if (clashes) {
+          existingSkuSet = new Set(clashes.map((c) => c.sku));
+        }
+      }
+
+      const seenInBatch = new Set<string>();
+      const variants = product.variants.map((v, index) => {
+        let baseSku = (v.sku ?? "").trim();
+        if (!baseSku || existingSkuSet.has(baseSku) || seenInBatch.has(baseSku)) {
+          const sizePart = (v.size ?? "").trim() ? `-${v.size}` : "";
+          const colorPart = (v.color ?? "").trim() ? `-${v.color.slice(0, 3)}` : "";
+          baseSku = `${id}${sizePart}${colorPart}-${crypto.randomUUID().slice(0, 6)}`.toUpperCase();
+        }
+        seenInBatch.add(baseSku);
+
+        return {
+          id: crypto.randomUUID(),
+          product_id: id,
+          sku: baseSku,
+          size: v.size,
+          color: v.color,
+          stock: toStock(v.stock),
+          reserved_stock: v.reservedStock ?? 0,
+          price_override: v.priceOverride,
+        };
+      });
 
       const { error: variantError } = await adminSupabase
         .from('product_variants')

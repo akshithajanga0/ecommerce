@@ -45,7 +45,7 @@ export function HomeHero() {
 
         <div className="relative grid items-center lg:grid-cols-12">
           {/* Left content */}
-          <div className="flex flex-col justify-center p-6 sm:p-10 lg:col-span-7 lg:p-14">
+          <div className="flex flex-col justify-center p-4 sm:p-10 lg:col-span-7 lg:p-14">
             <div className="mb-4 flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold backdrop-blur-sm text-neutral-200">
                 <Sparkles size={13} className="text-amber-400" />
@@ -57,7 +57,7 @@ export function HomeHero() {
               </span>
             </div>
 
-            <h1 className="text-3xl font-extrabold tracking-tight text-white sm:text-5xl lg:text-6xl lg:leading-[1.1]">
+            <h1 className="text-2xl xs:text-3xl font-extrabold tracking-tight text-white sm:text-5xl lg:text-6xl lg:leading-[1.1]">
               Discover <br />
               <span className="text-neutral-300">Your Style.</span>
             </h1>
@@ -68,7 +68,7 @@ export function HomeHero() {
             </p>
 
             {/* CTAs */}
-            <div className="mt-7 flex flex-wrap items-center gap-3">
+            <div className="mt-7 flex flex-wrap items-center gap-2.5 sm:gap-3">
               <Link
                 href="/products"
                 className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-white px-7 text-sm font-bold text-black transition-transform hover:-translate-y-0.5 hover:bg-neutral-100"

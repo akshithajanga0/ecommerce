@@ -31,11 +31,11 @@ const BENEFITS = [
 export function QuickBenefits() {
   return (
     <section className="mx-auto max-w-7xl px-4 pt-8 sm:px-6">
-      <div className="grid grid-cols-2 gap-3 rounded-2xl border border-neutral-200 bg-white p-4 shadow-xs sm:grid-cols-3 lg:grid-cols-5 lg:gap-4 lg:p-5">
+      <div className="grid grid-cols-2 gap-2.5 rounded-2xl border border-neutral-200 bg-white p-3 shadow-xs sm:grid-cols-3 sm:gap-3 sm:p-4 lg:grid-cols-5 lg:gap-4 lg:p-5">
         {BENEFITS.map((b) => (
           <div
             key={b.title}
-            className="flex items-center gap-3 rounded-xl p-2 transition-colors hover:bg-neutral-50"
+            className="flex items-center gap-2.5 sm:gap-3 rounded-xl p-2 transition-colors hover:bg-neutral-50 [&:nth-child(5)]:col-span-2 sm:[&:nth-child(5)]:col-span-1"
           >
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-black">
               <b.icon size={19} strokeWidth={2} />

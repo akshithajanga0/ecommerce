@@ -121,7 +121,7 @@ export default function OrderDetailPage() {
             {order.status !== "Cancelled" ? (
               <div className="rounded-lg border border-neutral-200 bg-white p-5">
                 <h2 className="mb-4 text-sm font-bold text-black">Order Status</h2>
-                <ol className="flex flex-wrap items-center gap-2">
+                <ol className="flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:flex-wrap">
                   {STEPS.map((s, i) => {
                     const idx = STEPS.findIndex(
                       (x) => x.key === normalizeOrderStatus(order!.status)

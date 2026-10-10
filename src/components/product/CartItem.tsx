@@ -16,10 +16,10 @@ export function CartItem({ item }: { item: CartItemType }) {
   const lineTotal = product.price * item.qty;
 
   return (
-    <div className="flex gap-4 p-4">
+    <div className="flex gap-3 p-3 sm:gap-4 sm:p-4">
       <Link
         href={`/product/${product.slug}`}
-        className="h-24 w-24 shrink-0 overflow-hidden rounded-md border border-neutral-200 bg-white"
+        className="h-20 w-20 sm:h-24 sm:w-24 shrink-0 overflow-hidden rounded-md border border-neutral-200 bg-white"
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -33,7 +33,7 @@ export function CartItem({ item }: { item: CartItemType }) {
       </Link>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex items-start justify-between gap-2">
+        <div className="flex flex-col xs:flex-row xs:items-start justify-between gap-1 xs:gap-2">
           <div className="min-w-0">
             <Link
               href={`/product/${product.slug}`}
