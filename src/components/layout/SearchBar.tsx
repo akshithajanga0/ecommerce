@@ -84,10 +84,12 @@ export function SearchBar({ className, autoFocus }: { className?: string; autoFo
           }}
           placeholder="Search for products, brands and more"
           autoFocus={autoFocus}
+          suppressHydrationWarning
           className="h-11 w-full rounded-md border border-neutral-300 bg-neutral-50 pl-10 pr-16 text-sm text-black outline-none transition-colors placeholder:text-neutral-400 focus:border-black focus:bg-white"
         />
         <button
           type="submit"
+          suppressHydrationWarning
           className="absolute right-1 top-1 h-9 rounded px-3 text-sm font-semibold text-neutral-500 hover:bg-neutral-200/60 hover:text-black"
         >
           Search

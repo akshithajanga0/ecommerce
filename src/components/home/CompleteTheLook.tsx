@@ -98,6 +98,7 @@ export function CompleteTheLook() {
                     setActiveLookId(look.id);
                     setAdded(false);
                   }}
+                  suppressHydrationWarning
                   className={`rounded-full px-4 py-2 text-xs font-bold transition-all ${
                     isActive
                       ? "bg-black text-white shadow-xs"
@@ -207,6 +208,7 @@ export function CompleteTheLook() {
             <button
               onClick={handleAddAllToCart}
               disabled={added}
+              suppressHydrationWarning
               className="mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-white text-sm font-bold text-black transition-all hover:bg-neutral-100 disabled:opacity-80"
             >
               {added ? (

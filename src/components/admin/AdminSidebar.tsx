@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   AlertTriangle,
@@ -18,7 +19,6 @@ import {
   Percent,
   Settings,
   ShieldCheck,
-  ShoppingBag,
   Store,
   Tag,
   Users,
@@ -171,8 +171,14 @@ export function AdminSidebar({ mobileOpen, setMobileOpen }: AdminSidebarProps) {
         {/* Brand Header matching Ecommerce Logo */}
         <div className="flex h-16 shrink-0 items-center justify-between border-b border-neutral-200 px-5">
           <Link href="/admin" className="flex items-center gap-2.5" onClick={() => setMobileOpen(false)}>
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-black text-white shadow-sm">
-              <ShoppingBag size={20} strokeWidth={2.2} />
+            <span className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-neutral-200 bg-black shadow-sm">
+              <Image
+                src="/logo.jpg"
+                alt="Miracle Collections"
+                width={36}
+                height={36}
+                className="h-full w-full object-cover"
+              />
             </span>
             <div className="flex flex-col">
               <span className="text-base font-extrabold tracking-tight text-black leading-tight">

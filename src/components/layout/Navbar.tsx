@@ -162,6 +162,7 @@ export function Navbar() {
               <button
                 onClick={() => setNotifOpen((o) => !o)}
                 aria-label="Notifications"
+                suppressHydrationWarning
                 className="flex items-center justify-center rounded-md px-2 py-1.5 text-neutral-700 hover:bg-neutral-100 hover:text-black"
               >
                 <NotificationBellIcon />
@@ -527,6 +528,7 @@ function CategoryNavItem({
   return (
     <div
       ref={ref}
+      suppressHydrationWarning
       className="relative"
       onMouseEnter={canHover ? openMenu : undefined}
       onMouseLeave={canHover ? scheduleClose : undefined}

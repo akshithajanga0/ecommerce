@@ -12,6 +12,7 @@ import { ShopByBudget } from "@/components/home/ShopByBudget";
 import { PersonalizedDiscovery } from "@/components/home/PersonalizedDiscovery";
 import { PromoBanner } from "@/components/home/PromoBanner";
 import { WhyShopWithUs } from "@/components/home/WhyShopWithUs";
+import { VideoShowcase } from "@/components/home/VideoShowcase";
 import { FinalCTA } from "@/components/home/FinalCTA";
 
 export function HomeSectionHeader({
@@ -136,7 +137,10 @@ export function GuestHome() {
       {/* 10. Shop By Budget */}
       <ShopByBudget />
 
-      {/* 11. Promotional Banner */}
+      {/* 11. Video Showcase (YouTube Shorts) */}
+      <VideoShowcase />
+
+      {/* 12. Promotional Banner */}
       <PromoBanner />
 
       {/* 12. Why Shop With Us */}

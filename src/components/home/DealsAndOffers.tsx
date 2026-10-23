@@ -132,6 +132,7 @@ export function DealsAndOffers() {
                   <button
                     type="button"
                     onClick={() => handleCopy(coupon.code)}
+                    suppressHydrationWarning
                     className="flex items-center gap-1 rounded bg-black px-2.5 py-1 text-[11px] font-semibold text-white transition-colors hover:bg-neutral-800"
                   >
                     {isCopied ? (
