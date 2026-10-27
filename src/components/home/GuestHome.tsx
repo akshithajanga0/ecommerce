@@ -1,16 +1,16 @@
 import Link from "next/link";
-import { ArrowRight, Sparkles, TrendingUp } from "lucide-react";
+import { ArrowRight, TrendingUp } from "lucide-react";
 import { useStore } from "@/context/StoreContext";
 import { ProductCard } from "@/components/product/ProductCard";
 import { HomeHero } from "@/components/home/HomeHero";
 import { CategorySection } from "@/components/home/CategorySection";
 import { QuickBenefits } from "@/components/home/QuickBenefits";
+import { InTheSpotlight } from "@/components/home/InTheSpotlight";
 import { DealsAndOffers } from "@/components/home/DealsAndOffers";
-import { CompleteTheLook } from "@/components/home/CompleteTheLook";
+import { EditorialCampaign } from "@/components/home/EditorialCampaign";
 import { ShopByOccasion } from "@/components/home/ShopByOccasion";
 import { ShopByBudget } from "@/components/home/ShopByBudget";
 import { PersonalizedDiscovery } from "@/components/home/PersonalizedDiscovery";
-import { PromoBanner } from "@/components/home/PromoBanner";
 import { WhyShopWithUs } from "@/components/home/WhyShopWithUs";
 import { VideoShowcase } from "@/components/home/VideoShowcase";
 import { FinalCTA } from "@/components/home/FinalCTA";
@@ -68,19 +68,15 @@ export function GuestHome() {
     .filter((p) => p.badges?.includes("Trending"))
     .slice(0, 8);
 
-  const featuredProducts = products
-    .filter((p) => p.badges?.includes("Best Seller") || p.badges?.includes("New"))
-    .slice(0, 8);
-
   return (
     <main className="flex-1 pb-10">
-      {/* 1. Hero Section */}
+      {/* 1. Redesigned Premium Hero Section with Auto-Scroll (Clean Modern Theme) */}
       <HomeHero />
 
-      {/* 2. Shop By Category */}
+      {/* 2. Expanded Shop By Category with Mobile Horizontal Scroll */}
       <CategorySection />
 
-      {/* 3. Quick Benefits */}
+      {/* 3. Sleek, Reduced-Size KPI Trust Strip */}
       <QuickBenefits />
 
       {/* 4. Trending Now */}
@@ -103,33 +99,19 @@ export function GuestHome() {
         </div>
       </section>
 
-      {/* 5. Offers & Deals */}
+      {/* 5. In The Spotlight Section (Per provided reference design) */}
+      <InTheSpotlight />
+
+      {/* 6. Offers & Deals */}
       <DealsAndOffers />
 
-      {/* 6. Featured Products */}
-      <section className="mx-auto max-w-7xl px-4 pt-14 sm:px-6">
-        <HomeSectionHeader
-          icon={Sparkles}
-          badge="Handpicked For You"
-          title="Featured Products"
-          subtitle="Best-selling essentials and fresh new season arrivals"
-          viewAll="/products?sort=rating"
-        />
+      {/* 7. Editorial Fashion Campaign */}
+      <EditorialCampaign />
 
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
-          {featuredProducts.map((p) => (
-            <ProductCard key={p.id} product={p} />
-          ))}
-        </div>
-      </section>
-
-      {/* 7. Complete The Look */}
-      <CompleteTheLook />
-
-      {/* 8. Shop By Occasion ("What Are You Shopping For?") */}
+      {/* 8. Shop By Occasion */}
       <ShopByOccasion />
 
-      {/* 9. Fashion Discovery & Personalized Section ("Picked For You" + Recently Viewed / Continue Shopping) */}
+      {/* 9. Fashion Discovery & Personalized Section */}
       <div className="pt-10">
         <PersonalizedDiscovery />
       </div>
@@ -137,11 +119,8 @@ export function GuestHome() {
       {/* 10. Shop By Budget */}
       <ShopByBudget />
 
-      {/* 11. Video Showcase (YouTube Shorts) */}
+      {/* 11. Video Showcase */}
       <VideoShowcase />
-
-      {/* 12. Promotional Banner */}
-      <PromoBanner />
 
       {/* 12. Why Shop With Us */}
       <WhyShopWithUs />

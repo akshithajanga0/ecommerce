@@ -192,7 +192,7 @@ export function Navbar() {
                     className="flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-semibold text-black hover:bg-neutral-100"
                   >
                     <span className="flex h-7 w-7 items-center justify-center rounded-full bg-black text-xs font-bold text-white">
-                      {currentUser.name.charAt(0).toUpperCase()}
+                      {currentUser.name ? currentUser.name.trim().charAt(0).toUpperCase() : "U"}
                     </span>
                     Hi, {currentUser.name.split(" ")[0]}
                     <ChevronDown size={14} className="text-neutral-400" />

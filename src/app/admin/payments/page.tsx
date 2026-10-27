@@ -10,7 +10,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { useAdmin } from "@/context/AdminContext";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, handleImageError } from "@/lib/utils";
 import type { AdminPayment, PaymentVerificationStatus } from "@/lib/adminTypes";
 import { PaymentVerifyModal } from "@/components/admin/PaymentVerifyModal";
 
@@ -298,6 +298,7 @@ export default function AdminPaymentsPage() {
                           <img
                             src={p.screenshotUrl}
                             alt="Receipt"
+                            onError={handleImageError}
                             className="h-8 w-8 rounded object-cover border border-neutral-200"
                           />
                           <span>View Receipt</span>

@@ -250,6 +250,9 @@ export interface YouTubeVideoItem {
   id: string;
   title: string;
   videoId: string;
+  url?: string;
+  description?: string;
+  tag?: string;
   thumbnail: string;
   duration: string;
   views: string;

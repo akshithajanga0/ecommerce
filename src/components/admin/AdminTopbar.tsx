@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useAdmin } from "@/context/AdminContext";
 import { useStore } from "@/context/StoreContext";
+import { handleAvatarError } from "@/lib/utils";
 
 interface AdminTopbarProps {
   onOpenMobileSidebar: () => void;
@@ -228,6 +229,7 @@ export function AdminTopbar({
             <img
               src={currentStaff.avatar}
               alt={currentStaff.name}
+              onError={handleAvatarError}
               className="h-6 w-6 rounded-full object-cover border border-neutral-200"
             />
             <div className="text-left hidden sm:block">
@@ -267,6 +269,7 @@ export function AdminTopbar({
                       <img
                         src={s.avatar}
                         alt={s.name}
+                        onError={handleAvatarError}
                         className="h-5 w-5 rounded-full object-cover"
                       />
                       <div>
