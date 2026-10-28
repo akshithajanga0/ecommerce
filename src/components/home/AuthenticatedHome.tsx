@@ -7,7 +7,6 @@ import {
   Clock,
   Compass,
   Heart,
-  Layers,
   Package,
   ShoppingCart,
   Sparkles,
@@ -18,6 +17,7 @@ import {
 import { useStore } from "@/context/StoreContext";
 import { ProductCard } from "@/components/product/ProductCard";
 import { HomeHero } from "@/components/home/HomeHero";
+import { CategorySection } from "@/components/home/CategorySection";
 import { VideoShowcase } from "@/components/home/VideoShowcase";
 import { handleImageError } from "@/lib/utils";
 import type { User } from "@/lib/types";
@@ -242,89 +242,8 @@ export function AuthenticatedHome({ user }: { user: User }) {
         </div>
       </section>
 
-      {/* 4. Shop by Category (Strictly Clothing & Footwear) */}
-      <section className="mx-auto max-w-7xl px-4 pt-14 sm:px-6">
-        <div className="mb-6 flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-md bg-neutral-100">
-                <Layers size={17} className="text-black" />
-              </span>
-              <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">
-                Core Collections
-              </span>
-            </div>
-            <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-black sm:text-3xl">
-              Shop by Category
-            </h2>
-            <p className="mt-1 text-xs text-neutral-500 sm:text-sm">
-              Explore our signature catalog across premium apparel and handcrafted footwear.
-            </p>
-          </div>
-        </div>
-
-        <div className="grid gap-6 md:grid-cols-2">
-          {/* Clothing Card */}
-          <Link
-            href="/products?category=clothing"
-            className="group relative flex min-h-[300px] flex-col justify-end overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-900 p-6 text-white shadow-md transition-shadow hover:shadow-xl sm:p-8"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="https://images.unsplash.com/photo-1566206091558-7f218b696731?auto=format&fit=crop&w=800&q=80"
-              alt="Clothing Collection"
-              onError={handleImageError}
-              className="absolute inset-0 h-full w-full object-cover opacity-60 transition-transform duration-500 group-hover:scale-105"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
-
-            <div className="relative z-10">
-              <span className="inline-block rounded-full bg-white/20 px-3 py-1 text-xs font-bold backdrop-blur-md">
-                24+ Live Styles
-              </span>
-              <h3 className="mt-2 text-2xl font-black text-white sm:text-3xl">
-                Clothing Collection
-              </h3>
-              <p className="mt-1 text-xs text-neutral-200 sm:text-sm">
-                Kurtis, Sarees, Oxford Shirts, T-Shirts, Denims & Festive Sets.
-              </p>
-              <div className="mt-4 flex items-center gap-2 text-sm font-bold text-white group-hover:underline">
-                Explore Clothing <ArrowRight size={16} />
-              </div>
-            </div>
-          </Link>
-
-          {/* Footwear Card */}
-          <Link
-            href="/products?category=footwear"
-            className="group relative flex min-h-[300px] flex-col justify-end overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-900 p-6 text-white shadow-md transition-shadow hover:shadow-xl sm:p-8"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=800&q=80"
-              alt="Footwear Collection"
-              onError={handleImageError}
-              className="absolute inset-0 h-full w-full object-cover opacity-60 transition-transform duration-500 group-hover:scale-105"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
-
-            <div className="relative z-10">
-              <span className="inline-block rounded-full bg-white/20 px-3 py-1 text-xs font-bold backdrop-blur-md">
-                16+ Live Styles
-              </span>
-              <h3 className="mt-2 text-2xl font-black text-white sm:text-3xl">
-                Footwear Collection
-              </h3>
-              <p className="mt-1 text-xs text-neutral-200 sm:text-sm">
-                Minimal Sneakers, Ethnic Juttis, Leather Brogues & Wedge Sandals.
-              </p>
-              <div className="mt-4 flex items-center gap-2 text-sm font-bold text-white group-hover:underline">
-                Explore Footwear <ArrowRight size={16} />
-              </div>
-            </div>
-          </Link>
-        </div>
-      </section>
+      {/* 4. Shop by Category (Identical to Homepage CategorySection) */}
+      <CategorySection />
 
       {/* 5. New Arrivals */}
       <section className="mx-auto max-w-7xl px-4 pt-14 sm:px-6">
