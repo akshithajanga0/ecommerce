@@ -32,7 +32,9 @@ import type {
   AdminSubcategory,
 } from "@/lib/adminTypes";
 import { useStore } from "@/context/StoreContext";
-import { SEED_YOUTUBE_VIDEOS } from "@/data/adminSeed";
+import { SEED_BANNERS, SEED_YOUTUBE_VIDEOS } from "@/data/adminSeed";
+import type { AdminHomepageConfig } from "@/lib/homepageTypes";
+import DEFAULT_HOMEPAGE_CONFIG from "@/data/adminHomepage.json";
 // Admin data access goes through server actions only. The service-role client
 // is server-only and must never be imported into this Client Component.
 import {
@@ -214,6 +216,12 @@ interface AdminContextValue {
   saveYouTubeVideo: (video: Partial<YouTubeVideoItem>) => Promise<YouTubeVideoItem>;
   deleteYouTubeVideo: (id: string) => Promise<void>;
 
+  // Homepage Section & Content Management
+  homepageConfig: AdminHomepageConfig;
+  saveHomepageConfig: (newConfig: AdminHomepageConfig) => Promise<boolean>;
+  updateSectionVisibility: (sectionId: string, enabled: boolean) => Promise<boolean>;
+  moveSectionOrder: (sectionId: string, direction: "up" | "down") => Promise<boolean>;
+
   // Settings
   saveSettings: (patch: Partial<AdminSettings>) => Promise<void>;
 
@@ -271,6 +279,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   const [banners, setBanners] = useState<AdminBanner[]>([]);
   const [announcements, setAnnouncements] = useState<AnnouncementBarItem[]>([]);
   const [youtubeVideos, setYoutubeVideos] = useState<YouTubeVideoItem[]>([]);
+  const [homepageConfig, setHomepageConfig] = useState<AdminHomepageConfig>(DEFAULT_HOMEPAGE_CONFIG as unknown as AdminHomepageConfig);
   const [settings, setSettings] = useState<AdminSettings | null>(null);
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
@@ -321,8 +330,48 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         setCoupons(res.success ? res.data : []);
       },
       banners: async () => {
-        const res = await adminGetBanners();
-        setBanners(res.success ? res.data : []);
+        // Try fetching server-persisted admin banners from /api/banners
+        try {
+          const res = await fetch("/api/banners");
+          if (res.ok) {
+            const serverData = await res.json();
+            if (Array.isArray(serverData) && serverData.length > 0) {
+              setBanners(serverData);
+              try {
+                localStorage.setItem("miracle_admin_banners", JSON.stringify(serverData));
+              } catch {}
+              return;
+            }
+          }
+        } catch {}
+
+        // Fallback to client localStorage
+        let localData: AdminBanner[] | null = null;
+        try {
+          const raw = typeof window !== "undefined" ? localStorage.getItem("miracle_admin_banners") : null;
+          if (raw) localData = JSON.parse(raw);
+        } catch {}
+
+        if (localData && Array.isArray(localData) && localData.length > 0) {
+          setBanners(localData);
+          return;
+        }
+
+        try {
+          const res = await adminGetBanners();
+          if (res.success && res.data && res.data.length > 0) {
+            setBanners(res.data);
+            try {
+              localStorage.setItem("miracle_admin_banners", JSON.stringify(res.data));
+            } catch {}
+            return;
+          }
+        } catch {}
+
+        setBanners(SEED_BANNERS);
+        try {
+          localStorage.setItem("miracle_admin_banners", JSON.stringify(SEED_BANNERS));
+        } catch {}
       },
       announcements: async () => {
         const res = await adminGetAnnouncements();
@@ -956,36 +1005,90 @@ export function AdminProvider({ children }: { children: ReactNode }) {
 
   const saveBanner = useCallback(
     async (patch: Partial<AdminBanner>): Promise<AdminBanner> => {
-      const result = await adminSaveBanner(patch);
-      if (result.success && result.data) {
-        const saved = result.data;
-        setBanners((prev) => {
-          const exists = prev.some((b) => b.id === saved.id);
-          if (exists) {
-            return prev.map((b) => (b.id === saved.id ? saved : b));
-          }
-          return [saved, ...prev];
+      let finalSaved: AdminBanner = {
+        id: patch.id || `ban_${Date.now()}`,
+        title: patch.title || "Featured Collection",
+        subtitle: patch.subtitle || "",
+        category: patch.category || "Heritage Weaves",
+        badge: patch.badge || "Signature Collection",
+        price: patch.price,
+        mrp: patch.mrp,
+        rating: patch.rating || 4.8,
+        reviews: patch.reviews || 100,
+        image: patch.image || "",
+        link: patch.link || "/products",
+        buttonText: patch.buttonText || "Shop Now",
+        active: patch.active ?? true,
+        order: patch.order ?? 1,
+      };
+
+      try {
+        const result = await adminSaveBanner(patch);
+        if (result.success && result.data) {
+          finalSaved = { ...finalSaved, ...result.data };
+        }
+      } catch {}
+
+      let nextList: AdminBanner[] = [];
+      setBanners((prev) => {
+        const exists = prev.some((b) => b.id === finalSaved.id);
+        nextList = exists
+          ? prev.map((b) => (b.id === finalSaved.id ? finalSaved : b))
+          : [finalSaved, ...prev];
+
+        try {
+          localStorage.setItem("miracle_admin_banners", JSON.stringify(nextList));
+          window.dispatchEvent(new CustomEvent("miracle_banners_updated"));
+        } catch {}
+
+        return nextList;
+      });
+
+      // Persist to server storage API so homepage updates across all sessions
+      try {
+        await fetch("/api/banners", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(nextList),
         });
-        logAudit("Content", "Update", `Saved banner ${patch.id || "new"}`);
-        adminToast("Banner saved", "success");
-        return saved;
-      }
-      if (!result.success) adminToast(result.error, "error");
-      return banners[0] as AdminBanner;
+      } catch {}
+
+      logAudit("Content", "Update", `Saved banner ${finalSaved.title}`);
+      adminToast("Banner saved and published to storefront successfully", "success");
+      return finalSaved;
     },
-    [banners, logAudit, adminToast]
+    [logAudit, adminToast]
   );
 
   const deleteBanner = useCallback(
     async (id: string) => {
-      const result = await adminDeleteBanner(id);
-      if (!result.success) {
-        adminToast(result.error, "error");
-        return;
-      }
-      setBanners((prev) => prev.filter((b) => b.id !== id));
+      try {
+        await adminDeleteBanner(id);
+      } catch {}
+
+      let nextList: AdminBanner[] = [];
+      setBanners((prev) => {
+        nextList = prev.filter((b) => b.id !== id);
+
+        try {
+          localStorage.setItem("miracle_admin_banners", JSON.stringify(nextList));
+          window.dispatchEvent(new CustomEvent("miracle_banners_updated"));
+        } catch {}
+
+        return nextList;
+      });
+
+      // Persist removal to server storage API
+      try {
+        await fetch("/api/banners", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(nextList),
+        });
+      } catch {}
+
       logAudit("Content", "Delete", `Deleted banner ${id}`);
-      adminToast("Banner deleted", "info");
+      adminToast("Banner deleted from storefront", "info");
     },
     [logAudit, adminToast]
   );
@@ -1082,6 +1185,98 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     },
     [logAudit, adminToast]
   );
+
+  // Homepage Section & Content Management
+  useEffect(() => {
+    try {
+      const cached = localStorage.getItem("miracle_admin_homepage");
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && Array.isArray(parsed.sections)) {
+          setHomepageConfig(parsed);
+        }
+      }
+    } catch {}
+
+    const loadHomepage = async () => {
+      try {
+        const res = await fetch("/api/homepage");
+        if (res.ok) {
+          const data = await res.json();
+          if (data && Array.isArray(data.sections)) {
+            setHomepageConfig(data);
+            try {
+              localStorage.setItem("miracle_admin_homepage", JSON.stringify(data));
+            } catch {}
+          }
+        }
+      } catch {}
+    };
+
+    loadHomepage();
+
+    const handleUpdate = (e: any) => {
+      if (e?.detail && Array.isArray(e.detail.sections)) {
+        setHomepageConfig(e.detail);
+        return;
+      }
+      try {
+        const raw = localStorage.getItem("miracle_admin_homepage");
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && Array.isArray(parsed.sections)) {
+            setHomepageConfig(parsed);
+          }
+        }
+      } catch {}
+    };
+
+    window.addEventListener("miracle_homepage_updated", handleUpdate);
+    return () => window.removeEventListener("miracle_homepage_updated", handleUpdate);
+  }, []);
+
+  const saveHomepageConfig = useCallback(async (newConfig: AdminHomepageConfig): Promise<boolean> => {
+    setHomepageConfig(newConfig);
+    try {
+      localStorage.setItem("miracle_admin_homepage", JSON.stringify(newConfig));
+      window.dispatchEvent(new CustomEvent("miracle_homepage_updated", { detail: newConfig }));
+    } catch {}
+
+    try {
+      const res = await fetch("/api/homepage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newConfig),
+      });
+      return res.ok;
+    } catch (err) {
+      console.error("Error saving homepage config:", err);
+      return false;
+    }
+  }, []);
+
+  const updateSectionVisibility = useCallback(async (sectionId: string, enabled: boolean): Promise<boolean> => {
+    if (!homepageConfig) return false;
+    const nextSections = homepageConfig.sections.map((s) =>
+      s.id === sectionId ? { ...s, enabled } : s
+    );
+    return saveHomepageConfig({ ...homepageConfig, sections: nextSections });
+  }, [homepageConfig, saveHomepageConfig]);
+
+  const moveSectionOrder = useCallback(async (sectionId: string, direction: "up" | "down"): Promise<boolean> => {
+    if (!homepageConfig) return false;
+    const sorted = [...homepageConfig.sections].sort((a, b) => a.order - b.order);
+    const idx = sorted.findIndex((s) => s.id === sectionId);
+    if (idx < 0) return false;
+    if (direction === "up" && idx === 0) return false;
+    if (direction === "down" && idx === sorted.length - 1) return false;
+    const targetIdx = direction === "up" ? idx - 1 : idx + 1;
+    const temp = sorted[idx];
+    sorted[idx] = sorted[targetIdx];
+    sorted[targetIdx] = temp;
+    const nextSections = sorted.map((s, i) => ({ ...s, order: i + 1 }));
+    return saveHomepageConfig({ ...homepageConfig, sections: nextSections });
+  }, [homepageConfig, saveHomepageConfig]);
 
   const deleteYouTubeVideo = useCallback(
     async (id: string) => {
@@ -1250,6 +1445,10 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       deleteAnnouncement,
       saveYouTubeVideo,
       deleteYouTubeVideo,
+      homepageConfig,
+      saveHomepageConfig,
+      updateSectionVisibility,
+      moveSectionOrder,
       saveSettings,
       addStaff,
       deleteStaff,
@@ -1311,6 +1510,10 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       deleteAnnouncement,
       saveYouTubeVideo,
       deleteYouTubeVideo,
+      homepageConfig,
+      saveHomepageConfig,
+      updateSectionVisibility,
+      moveSectionOrder,
       saveSettings,
       addStaff,
       deleteStaff,

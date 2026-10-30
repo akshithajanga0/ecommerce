@@ -4,6 +4,7 @@ import { useRef, useEffect } from "react";
 import Link from "next/link";
 import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { formatPrice, handleImageError } from "@/lib/utils";
+import type { AdminSpotlightItem } from "@/lib/homepageTypes";
 
 interface SpotlightItem {
   id: string;
@@ -13,48 +14,54 @@ interface SpotlightItem {
   price: number;
   image: string;
   href: string;
+  order?: number;
+  active?: boolean;
 }
 
 const SPOTLIGHT_ITEMS: SpotlightItem[] = [
   {
-    id: "spotlight-saree",
+    id: "spotlight-saree-1584",
     brand: "MIRACLE",
-    title: "Royal Banarasi Silk Saree",
-    subtitle: "Pure Katan Silk · Handwoven Zari Pallu",
-    price: 2499,
-    image: "https://images.unsplash.com/photo-1617627143750-d86bc21e42bb?auto=format&fit=crop&w=900&q=85",
-    href: "/products?category=clothing&subcategory=sarees",
+    title: "Banarasi Zari Checkered Saree",
+    subtitle: "D.No 1584 · With Matching Blouse Piece",
+    price: 1899,
+    image: "/images/products/saree-1584-purple-model.jpg",
+    href: "/product/royal-banarasi-zari-checkered-saree-d-no-1584",
   },
   {
-    id: "spotlight-kurta",
+    id: "spotlight-saree-mysore",
     brand: "MIRACLE",
-    title: "Embroidered Anarkali Set",
-    subtitle: "Flared Rayon · Matching Chiffon Dupatta",
-    price: 899,
-    image: "https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?auto=format&fit=crop&w=900&q=85",
-    href: "/products?category=clothing&subcategory=kurta-sets",
-  },
-  {
-    id: "spotlight-brogues",
-    brand: "MIRACLE",
-    title: "Handcrafted Italian Brogues",
-    subtitle: "Full-Grain Leather · Ergonomic Soles",
+    title: "Mysore Butta Chit Pallu Saree",
+    subtitle: "Mysore Silk · Peacock Gold Zari Border",
     price: 2199,
-    image: "https://images.unsplash.com/photo-1549298916-b41d501d3772?auto=format&fit=crop&w=900&q=85",
-    href: "/products?category=footwear&subcategory=formal-shoes",
+    image: "/images/products/saree-mysore-purple-green.jpg",
+    href: "/product/mysore-butta-chit-pallu-purple-green-saree",
   },
   {
-    id: "spotlight-shirt",
+    id: "spotlight-saree-floral",
     brand: "MIRACLE",
-    title: "Tailored Oxford Cotton Shirt",
-    subtitle: "100% Combed Cotton · Breathable Fit",
-    price: 799,
-    image: "https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?auto=format&fit=crop&w=900&q=85",
-    href: "/products?category=clothing&subcategory=shirts",
+    title: "Floral Hibiscus Festive Saree",
+    subtitle: "Lightweight Silk Blend · Woven Zari Border",
+    price: 1499,
+    image: "/images/products/saree-floral-yellow.jpg",
+    href: "/product/mustard-yellow-floral-hibiscus-zari-saree",
+  },
+  {
+    id: "spotlight-saree-contrast",
+    brand: "MIRACLE",
+    title: "Traditional Zari Contrast Saree",
+    subtitle: "Teal Blue & Mint Green · Geometric Butta",
+    price: 1999,
+    image: "/images/products/saree-contrast-teal-green.jpg",
+    href: "/product/teal-blue-traditional-silk-saree-mint-green-border",
   },
 ];
 
-export function InTheSpotlight() {
+export function InTheSpotlight({ items }: { items?: AdminSpotlightItem[] } = {}) {
+  const displayItems = (items && items.length > 0 ? items : SPOTLIGHT_ITEMS)
+    .filter((i) => i.active !== false)
+    .sort((a, b) => (a.order || 0) - (b.order || 0));
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const isInteractingRef = useRef(false);
 
@@ -140,7 +147,7 @@ export function InTheSpotlight() {
         }}
         className="-mx-4 flex gap-4 overflow-x-auto px-4 pb-3 snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:px-0"
       >
-        {SPOTLIGHT_ITEMS.map((item) => (
+        {displayItems.map((item) => (
           <Link
             key={item.id}
             href={item.href}

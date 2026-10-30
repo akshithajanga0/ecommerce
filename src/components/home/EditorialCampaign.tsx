@@ -3,8 +3,39 @@
 import Link from "next/link";
 import { ArrowRight, Sparkles, CheckCircle2 } from "lucide-react";
 import { handleImageError } from "@/lib/utils";
+import type { AdminEditorialCampaign } from "@/lib/homepageTypes";
 
-export function EditorialCampaign() {
+const DEFAULT_EDITORIAL: AdminEditorialCampaign = {
+  badge: "Editorial Showcase · Season '26",
+  headline: "The Symphony of Heritage & Modernity",
+  tagline: "The Sovereign Edit — Harmonized silhouettes tailored for festive poise and daily splendour.",
+  pullQuote: "True elegance lies in the quiet harmony of honest craftsmanship, breathable natural fibers, and timeless silhouettes.",
+  description: "Our latest campaign celebrates the art of refined dressing. From flowing zari-embroidered anarkalis to tailored oxford shirts and hand-stitched leather footwear, every piece is curated to transition seamlessly from festive celebrations to everyday occasions.",
+  bullets: [
+    "100% Pure Combed Cotton, Rayon & Silk Blends",
+    "Hand-finished Zari Embroidery & Artisanal Stitching",
+    "Tailored Contemporary Fits Designed for Modern Living",
+    "Direct Artisan Sourcing with Zero Intermediary Markups"
+  ],
+  primaryImage: "/images/products/saree-1584-purple-model.jpg",
+  primaryBadge: "Editorial · Autumn-Winter '26",
+  primaryTitle: "The Sovereign Edit",
+  primarySubtitle: "Harmonized silhouettes tailored for festive poise and daily splendour.",
+  secondaryImage: "/images/products/saree-mysore-purple-green.jpg",
+  secondaryTag: "Mysore Silk & Zari",
+  secondaryTitle: "Chit Pallu Artistry",
+  tertiaryImage: "/images/products/saree-floral-yellow.jpg",
+  tertiaryTag: "Woven Gold Border",
+  tertiaryTitle: "Festive Hibiscus Drape",
+  ctaPrimaryText: "Shop The Campaign",
+  ctaPrimaryLink: "/products?sort=newest",
+  ctaSecondaryText: "Explore Festive Styles",
+  ctaSecondaryLink: "/products?category=clothing&gender=women"
+};
+
+export function EditorialCampaign({ editorial }: { editorial?: AdminEditorialCampaign } = {}) {
+  const ed = editorial || DEFAULT_EDITORIAL;
+
   return (
     <section className="mx-auto max-w-7xl px-4 pt-14 sm:px-6">
       {/* Editorial Campaign Banner Card */}
@@ -22,8 +53,8 @@ export function EditorialCampaign() {
                 <div className="relative aspect-[4/5] w-full overflow-hidden">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src="https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=1000&q=85"
-                    alt="Miracle Collections Editorial Fashion Campaign"
+                    src={ed.primaryImage}
+                    alt={ed.primaryTitle || "Miracle Collections Editorial Saree Showcase"}
                     loading="lazy"
                     decoding="async"
                     onError={handleImageError}
@@ -34,7 +65,7 @@ export function EditorialCampaign() {
                   {/* Top Stamp */}
                   <div className="absolute left-3 top-3">
                     <span className="rounded-full border border-[#D4AF37] bg-[#2A050D]/90 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-[#F3E5AB] backdrop-blur-md">
-                      Editorial · Autumn-Winter &apos;26
+                      {ed.primaryBadge}
                     </span>
                   </div>
 
@@ -44,10 +75,10 @@ export function EditorialCampaign() {
                       Haute Couture Capsule
                     </p>
                     <h3 className="mt-1 text-lg font-black tracking-tight text-white sm:text-xl">
-                      The Sovereign Edit
+                      {ed.primaryTitle}
                     </h3>
                     <p className="mt-1 text-xs text-neutral-300">
-                      Harmonized silhouettes tailored for festive poise and daily splendour.
+                      {ed.primarySubtitle}
                     </p>
                   </div>
                 </div>
@@ -60,8 +91,8 @@ export function EditorialCampaign() {
                   <div className="relative aspect-[4/3] w-full overflow-hidden bg-neutral-100">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src="https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=600&q=85"
-                      alt="Artisanal Embroidery Detail"
+                      src={ed.secondaryImage}
+                      alt={ed.secondaryTitle}
                       loading="lazy"
                       decoding="async"
                       onError={handleImageError}
@@ -70,20 +101,20 @@ export function EditorialCampaign() {
                     <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
                     <div className="absolute bottom-2 left-3 right-3 text-white">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-[#DFB15B]">
-                        Pure Silk & Zari
+                        {ed.secondaryTag}
                       </span>
-                      <p className="text-xs font-bold text-white">Hand-Block Artistry</p>
+                      <p className="text-xs font-bold text-white">{ed.secondaryTitle}</p>
                     </div>
                   </div>
                 </div>
 
-                {/* Handcrafted Footwear Detail Vignette */}
+                {/* Handcrafted Saree Detail Vignette */}
                 <div className="group relative overflow-hidden rounded-xl border border-[#D4AF37]/30 bg-white shadow-md">
                   <div className="relative aspect-[4/3] w-full overflow-hidden bg-neutral-100">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src="https://images.unsplash.com/photo-1549298916-b41d501d3772?auto=format&fit=crop&w=600&q=85"
-                      alt="Handcrafted Leather Soles"
+                      src={ed.tertiaryImage}
+                      alt={ed.tertiaryTitle}
                       loading="lazy"
                       decoding="async"
                       onError={handleImageError}
@@ -92,9 +123,9 @@ export function EditorialCampaign() {
                     <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
                     <div className="absolute bottom-2 left-3 right-3 text-white">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-[#DFB15B]">
-                        Hand-Lasted Soles
+                        {ed.tertiaryTag}
                       </span>
-                      <p className="text-xs font-bold text-white">Ergonomic Luxury</p>
+                      <p className="text-xs font-bold text-white">{ed.tertiaryTitle}</p>
                     </div>
                   </div>
                 </div>
@@ -110,57 +141,56 @@ export function EditorialCampaign() {
                 <Sparkles size={16} />
               </span>
               <span className="text-xs font-extrabold uppercase tracking-widest text-[#58111A]">
-                Editorial Showcase · Season &apos;26
+                {ed.badge}
               </span>
             </div>
 
             {/* Campaign Headline */}
             <h2 className="mt-3 text-2xl font-black tracking-tight text-neutral-900 sm:text-3xl lg:text-4xl">
-              The Symphony of <br />
-              <span className="italic font-serif text-[#58111A]">Heritage & Modernity</span>
+              {ed.headline}
             </h2>
 
             {/* Pull Quote */}
-            <blockquote className="mt-4 border-l-2 border-[#D4AF37] pl-4 text-xs italic text-neutral-700 sm:text-sm">
-              &ldquo;True elegance lies in the quiet harmony of honest craftsmanship, breathable natural fibers, and timeless silhouettes.&rdquo;
-            </blockquote>
+            {ed.pullQuote && (
+              <blockquote className="mt-4 border-l-2 border-[#D4AF37] pl-4 text-xs italic text-neutral-700 sm:text-sm">
+                &ldquo;{ed.pullQuote}&rdquo;
+              </blockquote>
+            )}
 
             {/* Story Paragraph */}
             <p className="mt-4 text-xs leading-relaxed text-neutral-600 sm:text-sm sm:leading-relaxed">
-              Our latest campaign celebrates the art of refined dressing. From flowing zari-embroidered anarkalis to tailored oxford shirts and hand-stitched leather footwear, every piece is curated to transition seamlessly from festive celebrations to everyday occasions.
+              {ed.description}
             </p>
 
             {/* Quality Checkpoints */}
-            <div className="mt-5 space-y-2 text-xs font-semibold text-neutral-800">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 size={15} className="text-[#58111A]" />
-                <span>100% Pure Combed Cotton, Rayon & Silk Blends</span>
+            {ed.bullets && ed.bullets.length > 0 && (
+              <div className="mt-5 space-y-2 text-xs font-semibold text-neutral-800">
+                {ed.bullets.map((bullet, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <CheckCircle2 size={15} className="text-[#58111A] shrink-0" />
+                    <span>{bullet}</span>
+                  </div>
+                ))}
               </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 size={15} className="text-[#58111A]" />
-                <span>Anatomically Cushioned & Lightweight Soles</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 size={15} className="text-[#58111A]" />
-                <span>Ethically Sourced & Master-Artisan Tailored</span>
-              </div>
-            </div>
+            )}
 
             {/* Clear Shopping Buttons */}
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
               <Link
-                href="/products?sort=newest"
+                href={ed.ctaPrimaryLink || "/products"}
                 className="group inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-[#D4AF37] bg-gradient-to-r from-[#4A0E17] via-[#5B1422] to-[#6E1A2C] px-7 text-sm font-extrabold text-[#F3E5AB] shadow-md shadow-[#4A0E17]/20 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-[#4A0E17]/30"
               >
-                <span>Shop The Campaign</span>
+                <span>{ed.ctaPrimaryText}</span>
                 <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
               </Link>
-              <Link
-                href="/products?category=clothing&gender=women"
-                className="inline-flex h-12 items-center justify-center rounded-xl border border-neutral-300 bg-white px-6 text-sm font-bold text-neutral-800 transition-colors hover:border-[#58111A] hover:bg-[#FAF6F0] hover:text-[#58111A]"
-              >
-                Explore Festive Styles
-              </Link>
+              {ed.ctaSecondaryText && (
+                <Link
+                  href={ed.ctaSecondaryLink || "/products"}
+                  className="inline-flex h-12 items-center justify-center rounded-xl border border-neutral-300 bg-white px-6 text-sm font-bold text-neutral-800 transition-colors hover:border-[#58111A] hover:bg-[#FAF6F0] hover:text-[#58111A]"
+                >
+                  {ed.ctaSecondaryText}
+                </Link>
+              )}
             </div>
           </div>
         </div>

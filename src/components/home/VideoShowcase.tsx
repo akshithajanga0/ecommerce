@@ -13,6 +13,7 @@ export function VideoShowcase() {
   const { user } = useStore();
   // ONLY whatever the admin posts will be loaded and displayed here
   const [videos, setVideos] = useState<YouTubeVideoItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [activeVideo, setActiveVideo] = useState<{
     id: string;
     title: string;
@@ -36,6 +37,7 @@ export function VideoShowcase() {
           const parsed = JSON.parse(raw);
           if (Array.isArray(parsed) && mounted) {
             setVideos(parsed.filter((v: YouTubeVideoItem) => v.active !== false));
+            setLoading(false);
           }
         }
       } catch {}
@@ -53,7 +55,11 @@ export function VideoShowcase() {
             } catch {}
           }
         }
-      } catch {}
+      } catch (err) {
+        console.error("Failed to sync videos with server API:", err);
+      } finally {
+        if (mounted) setLoading(false);
+      }
     };
 
     syncWithAdmin();
@@ -85,7 +91,7 @@ export function VideoShowcase() {
   };
 
   return (
-    <section className="mx-auto max-w-7xl px-4 pt-14 sm:px-6">
+    <section id="videos" className="mx-auto max-w-7xl px-4 pt-14 sm:px-6 scroll-mt-24">
       <div className="rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm sm:p-8 lg:p-10">
         {/* Header */}
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
@@ -139,13 +145,25 @@ export function VideoShowcase() {
         </div>
 
         {/* Video Shorts Grid: Displays ONLY whatever the admin posts */}
-        {videos.length === 0 ? (
+        {loading ? (
+          <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 sm:gap-6">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="animate-pulse rounded-2xl border border-neutral-200 bg-neutral-100 overflow-hidden">
+                <div className="aspect-[9/14] w-full bg-neutral-200" />
+                <div className="p-4 space-y-2 bg-white">
+                  <div className="h-4 w-3/4 rounded bg-neutral-200" />
+                  <div className="h-3 w-1/2 rounded bg-neutral-100" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : videos.length === 0 ? (
           <div className="mt-8 rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-10 text-center">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-50 text-rose-600">
               <Video size={28} />
             </div>
             <h3 className="mt-3 text-base font-bold text-neutral-900">
-              New Collection Videos Coming Soon
+              New videos are coming soon.
             </h3>
             <p className="mt-1 text-xs text-neutral-500 max-w-md mx-auto">
               Our lookbook videos are curated by our store team. Check back shortly or subscribe to our official channel for latest arrivals.

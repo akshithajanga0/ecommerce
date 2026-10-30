@@ -238,6 +238,11 @@ export interface AdminBanner {
   buttonText: string;
   active: boolean;
   order: number;
+  category?: string;
+  price?: number;
+  mrp?: number;
+  rating?: number;
+  reviews?: number;
 }
 
 export interface AnnouncementBarItem {

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ArrowRight, ChevronRight, Sparkles } from "lucide-react";
 import { handleImageError } from "@/lib/utils";
+import type { AdminCategoryGroupCard } from "@/lib/homepageTypes";
 
 interface CategorySubItem {
   name: string;
@@ -15,6 +16,8 @@ interface CategoryGroupCard {
   title: string;
   href: string;
   items: [CategorySubItem, CategorySubItem];
+  order?: number;
+  active?: boolean;
 }
 
 // Exactly 10 categories and subcategories grouped in 5 curated dual-item cards (matching the provided design)
@@ -32,7 +35,7 @@ const TEN_CATEGORIES_GROUPS: CategoryGroupCard[] = [
       {
         name: "Silk Sarees",
         href: "/products?category=clothing&subcategory=sarees",
-        image: "https://images.unsplash.com/photo-1617627143750-d86bc21e42bb?auto=format&fit=crop&w=400&q=80",
+        image: "/images/products/saree-1584-purple-model.jpg",
       },
     ],
   },
@@ -106,7 +109,11 @@ const TEN_CATEGORIES_GROUPS: CategoryGroupCard[] = [
   },
 ];
 
-export function CategorySection() {
+export function CategorySection({ categoryGroups }: { categoryGroups?: AdminCategoryGroupCard[] } = {}) {
+  const displayGroups = (categoryGroups && categoryGroups.length > 0 ? categoryGroups : TEN_CATEGORIES_GROUPS)
+    .filter((g) => g.active !== false)
+    .sort((a, b) => (a.order || 0) - (b.order || 0));
+
   return (
     <section id="categories" className="mx-auto max-w-7xl px-4 pt-10 sm:px-6">
       {/* Section Header */}
@@ -140,7 +147,7 @@ export function CategorySection() {
         - Desktop/Tablet: Even multi-column grid.
       */}
       <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 lg:grid-cols-5 lg:gap-3.5">
-        {TEN_CATEGORIES_GROUPS.map((group) => (
+        {displayGroups.map((group) => (
           <div
             key={group.id}
             className="w-[78vw] xs:w-[72vw] shrink-0 snap-start rounded-2xl border border-neutral-200 bg-white p-3.5 shadow-xs transition-all hover:border-[#D4AF37]/60 hover:shadow-md sm:w-auto sm:shrink"
